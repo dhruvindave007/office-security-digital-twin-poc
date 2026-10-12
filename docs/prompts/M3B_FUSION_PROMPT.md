@@ -12,6 +12,24 @@ M3 (`docs/prompts/M3_RULES_SIMULATOR_PROMPT.md`) must already be implemented and
 - `backend/src/twin/migrations.py` has migration version 2.
 - From `backend/`, `.\.venv\Scripts\python.exe -m pytest tests/unit -q` passes with zero failures. Record the exact count; this is your baseline.
 
+Expected baseline: **130 passed**. If your count differs, report it before continuing.
+
+## Facts about the code after M3 (these OVERRIDE anything below that conflicts)
+
+1. `_resolve_data_path` now lives in `backend/src/core/paths.py`. Import it from there in all new code, never from `vision.seed`.
+2. Import style: `try: from src.x import ... / except ImportError: from x import ...` (src first). M3 hit a circular import (rules → vision → rules) that crashed the server while every test still passed. To avoid it again:
+   - In `rules/correlation.py`, import `TopologyService` ONLY under `if TYPE_CHECKING:` and use string annotations.
+   - In `rules/engine.py`, import `CorrelationEngine` ONLY under `if TYPE_CHECKING:` (it is passed in, never constructed there).
+   - Add `"import src.access.service"`, `"import src.rules.correlation"` and `"import src.api.routes_access"` to the subprocess import checks in `tests/unit/test_app_import.py`.
+3. `run_migrations` in `twin/migrations.py` is already atomic. Add migration v3 as a new `MIGRATIONS` entry ONLY. Do not change `run_migrations`.
+4. `IncidentRuleEngine` currently creates incidents with 4 copy-pasted blocks. Step 3's `_raise_or_append` extraction is REQUIRED, not optional.
+5. `IncidentRuleEngine._get_dedupe_key(incident_type, zone_id, track_id)` is what reloads OPEN/INVESTIGATING incidents after a restart. You MUST extend it for `ACCESS_WITHOUT_BADGE`, `TAILGATING`, `BADGE_WITHOUT_ENTRY` and `TRACK_DISCONTINUITY`, using exactly the dedupe keys in the Step 3 table. Add a test: each new type is deduped after re-instantiating the engine.
+6. `main.py` has a module-level `_prune_once(twin_engine, rule_engine, now_iso)`. It already passes TRACK_LOST events to `rule_engine.evaluate`, so correlation sees them. Do not change it.
+7. The PATCH endpoint calls `rule_engine.forget()` only for RESOLVED/FALSE_POSITIVE. Keep it that way.
+8. `ScenarioStep` currently requires `camera_id`/`floor`. For `kind: access` those must become optional, with validation that depends on the kind (Step 5).
+9. Existing API tests live in `tests/unit/test_api_vision_simulator.py`. Put the new access/history API tests in a NEW file `tests/unit/test_api_access_history.py`.
+10. Before reporting, you MUST run the live smoke test in Step 7 against a running server. In M3, passing unit tests hid a server that could not start.
+
 Then read these files in full: `rules/engine.py`, `rules/policy.py`, `simulator/scenarios.py`, `simulator/runner.py`, `vision/topology.py`, `twin/store.py`, `twin/migrations.py`, `twin/validators.py`, `api/routes_twin.py`, `main.py`. Everything below builds on them.
 
 ## Why this milestone
@@ -118,7 +136,7 @@ Process events in the order given. Use these exact rules:
 | (none, bookkeeping only) | n/a | `ACCESS_GRANTED` at a door with `badge_required: true`: append it to `pending_grants[door]`. `ACCESS_DENIED` is logged in the ledger only. | n/a |
 | `ACCESS_WITHOUT_BADGE` | MEDIUM | `ZONE_ENTERED` into a zone that has a `badge_required` door (look up the door by `zone_id`). Search that door's grants for the EARLIEST one with `used_by_track is None` and `0 <= entry_ts - grant_ts <= badge_entry_window_seconds`. If found, mark it used by this track and raise nothing. If none is found, AND no `TAILGATING` applies (next row), raise this incident. Evidence: the entry event. | (type, zone_id, track_id) |
 | `TAILGATING` | HIGH | Same `ZONE_ENTERED` case where no unused grant was found, BUT a grant at that door was already used by a DIFFERENT track and `0 <= entry_ts - grant.used_at <= tailgating_window_seconds`. Raise TAILGATING instead of ACCESS_WITHOUT_BADGE. Evidence: entry event + grant event_id (`extra_event_ids`). | (type, zone_id, track_id) |
-| `BADGE_WITHOUT_ENTRY` | LOW | On EVERY event processed, first sweep all doors. Any grant with `used_by_track is None` and `current_event_ts - grant_ts > badge_entry_window_seconds` gets removed and raises this incident, with `track_id = f"badge:{badge_id}"` (from the grant event) and the grant event as evidence. Note: the sweep only runs when a later event arrives. That is intended (event-time determinism); state it as a known limitation in the report. | (type, track_id, grant event_id) |
+| `BADGE_WITHOUT_ENTRY` | LOW | On EVERY event processed, first sweep all doors. Any grant with `used_by_track is None` and `current_event_ts - grant_ts > badge_entry_window_seconds` gets removed and raises this incident, with `track_id = f"badge:{badge_id}"` (from the grant event), `zone_id` = the door's zone, and the grant event as evidence. A second expired grant for the same badge while the incident is open is appended as evidence, not a new incident. Note: the sweep only runs when a later event arrives. That is intended (event-time determinism); state it as a known limitation in the report. | (type, zone_id, track_id) |
 | `TRACK_DISCONTINUITY` | LOW | `PERSON_DETECTED` for a track whose `last_seen` camera differs from this event's camera. Let `elapsed = ts - last_seen_ts` and `min_s = topology.min_transit_seconds(prev_cam, cam)`. Raise if `min_s is None` (unreachable) OR `elapsed < min_s - transit_slack_seconds`. Evidence: the previous and current detection event ids. Do NOT raise when elapsed is too LONG (people stop and wait). | (type, track_id) |
 
 Add an additive method to `backend/src/vision/topology.py`: `min_transit_seconds(self, from_camera_id, to_camera_id) -> Optional[float]`. It returns 0.0 for the same camera, the sum of `min_transit_seconds` along `get_shortest_path(..., weight="min_transit")`, and None if unreachable. Do NOT change `is_transit_feasible`. Add tests for it.
