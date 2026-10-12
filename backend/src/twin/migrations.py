@@ -191,6 +191,99 @@ MIGRATIONS: List[Tuple[int, str, str]] = [
         ON incidents(start_time DESC);
         """,
     ),
+    (
+        3,
+        "Access-control events and correlation incident types",
+        """
+        -- Events table v3 with ACCESS_GRANTED and ACCESS_DENIED allowed
+        CREATE TABLE IF NOT EXISTS events_v3 (
+            sequence_num INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_id TEXT NOT NULL UNIQUE,
+            event_type TEXT NOT NULL CHECK(event_type IN (
+                'PERSON_DETECTED',
+                'ZONE_ENTERED',
+                'ZONE_EXITED',
+                'CROSS_ZONE_TRANSITION',
+                'DWELL_TIME_EXCEEDED',
+                'AFTER_HOURS_PRESENCE',
+                'UNAUTHORIZED_ACCESS',
+                'TAILGATING_SUSPECTED',
+                'TRACK_LOST',
+                'ACCESS_GRANTED',
+                'ACCESS_DENIED'
+            )),
+            timestamp TEXT NOT NULL,
+            track_id TEXT NOT NULL,
+            person_id TEXT DEFAULT NULL,
+            camera_id TEXT REFERENCES cameras(camera_id) ON DELETE SET NULL,
+            zone_id TEXT REFERENCES zones(zone_id) ON DELETE SET NULL,
+            previous_zone_id TEXT REFERENCES zones(zone_id) ON DELETE SET NULL,
+            confidence REAL DEFAULT NULL CHECK(confidence IS NULL OR (confidence >= 0.0 AND confidence <= 1.0)),
+            coordinates_json TEXT DEFAULT NULL,
+            payload_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+        );
+
+        INSERT INTO events_v3 SELECT * FROM events;
+
+        DROP TABLE events;
+
+        ALTER TABLE events_v3 RENAME TO events;
+
+        CREATE INDEX IF NOT EXISTS idx_events_timestamp 
+        ON events(timestamp ASC);
+
+        CREATE INDEX IF NOT EXISTS idx_events_track_id 
+        ON events(track_id, timestamp ASC);
+
+        CREATE INDEX IF NOT EXISTS idx_events_zone_id 
+        ON events(zone_id, timestamp ASC);
+
+        CREATE INDEX IF NOT EXISTS idx_events_event_type 
+        ON events(event_type, timestamp ASC);
+
+        -- Incidents table v3 with ACCESS_WITHOUT_BADGE and BADGE_WITHOUT_ENTRY allowed
+        CREATE TABLE IF NOT EXISTS incidents_v3 (
+            incident_id TEXT PRIMARY KEY,
+            incident_type TEXT NOT NULL CHECK(incident_type IN (
+                'UNAUTHORIZED_ENTRY',
+                'TAILGATING',
+                'DWELL_ANOMALY',
+                'AFTER_HOURS_BREACH',
+                'TRACK_DISCONTINUITY',
+                'ZONE_OVER_CAPACITY',
+                'ACCESS_WITHOUT_BADGE',
+                'BADGE_WITHOUT_ENTRY'
+            )),
+            severity TEXT NOT NULL CHECK(severity IN ('LOW', 'MEDIUM', 'HIGH', 'CRITICAL')),
+            status TEXT NOT NULL DEFAULT 'OPEN' CHECK(status IN ('OPEN', 'INVESTIGATING', 'RESOLVED', 'FALSE_POSITIVE')),
+            zone_id TEXT REFERENCES zones(zone_id) ON DELETE SET NULL,
+            track_id TEXT DEFAULT NULL,
+            person_id TEXT DEFAULT NULL,
+            start_time TEXT NOT NULL,
+            end_time TEXT DEFAULT NULL,
+            supporting_event_ids_json TEXT NOT NULL DEFAULT '[]',
+            summary TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+            updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+        );
+
+        INSERT INTO incidents_v3 SELECT * FROM incidents;
+
+        DROP TABLE incidents;
+
+        ALTER TABLE incidents_v3 RENAME TO incidents;
+
+        CREATE INDEX IF NOT EXISTS idx_incidents_status_severity 
+        ON incidents(status, severity);
+
+        CREATE INDEX IF NOT EXISTS idx_incidents_zone_id 
+        ON incidents(zone_id, start_time DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_incidents_start_time 
+        ON incidents(start_time DESC);
+        """,
+    ),
 ]
 
 
