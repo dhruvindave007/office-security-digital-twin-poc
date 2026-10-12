@@ -43,3 +43,8 @@ def test_import_src_access_service():
 def test_import_src_rules_correlation():
     _run_import("import src.rules.correlation")
 
+
+def test_import_src_api_routes_access():
+    _run_import("import src.api.routes_access")
+
+

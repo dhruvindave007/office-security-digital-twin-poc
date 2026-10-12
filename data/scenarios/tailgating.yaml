@@ -1,0 +1,25 @@
+name: tailgating
+description: "Authorized staff badges into server room; unauthorized second person follows within tailgating window."
+base_time_utc: "2026-01-15T10:00:00Z"
+steps:
+  - t: 0.0
+    kind: access
+    door_id: door_server_01
+    badge_id: badge_0001
+    result: GRANTED
+
+  - t: 2.0
+    kind: observation
+    camera_id: cam_server_01
+    track_id: sim_trk_admin
+    person_id: person_it_admin_01
+    floor: [35.0, 5.0]
+    confidence: 0.95
+
+  - t: 4.0
+    kind: observation
+    camera_id: cam_server_01
+    track_id: sim_trk_tail
+    person_id: null
+    floor: [35.0, 5.0]
+    confidence: 0.93

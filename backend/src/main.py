@@ -12,6 +12,7 @@ try:
     from src.access.service import AccessControlService
     from src.ai.bedrock_client import BedrockClient
     from src.ai.model_registry import DynamicValidator
+    from src.api.routes_access import router as access_router
     from src.api.routes_simulator import router as simulator_router
     from src.api.routes_system import router as system_router
     from src.api.routes_twin import router as twin_router
@@ -30,6 +31,7 @@ except ImportError:
     from access.service import AccessControlService
     from ai.bedrock_client import BedrockClient
     from ai.model_registry import DynamicValidator
+    from api.routes_access import router as access_router
     from api.routes_simulator import router as simulator_router
     from api.routes_system import router as system_router
     from api.routes_twin import router as twin_router
@@ -134,8 +136,6 @@ async def lifespan(app: FastAPI):
             topology_service=topology,
             rule_engine=rule_engine,
         )
-        scenario_runner = ScenarioRunner(obs_pipeline, homography_mgr)
-
         access_service = None
         if access_config:
             access_service = AccessControlService(
@@ -143,6 +143,12 @@ async def lifespan(app: FastAPI):
                 config=access_config,
                 rule_engine=rule_engine,
             )
+
+        scenario_runner = ScenarioRunner(
+            obs_pipeline,
+            homography_mgr,
+            access_service=access_service,
+        )
 
         app.state.homography_manager = homography_mgr
         app.state.rule_engine = rule_engine
@@ -213,6 +219,7 @@ app.add_middleware(
 
 app.include_router(system_router)
 app.include_router(twin_router)
+app.include_router(access_router)
 app.include_router(vision_router)
 app.include_router(simulator_router)
 
