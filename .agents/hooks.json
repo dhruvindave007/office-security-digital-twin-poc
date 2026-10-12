@@ -1,0 +1,27 @@
+{
+  "project-safety-gate": {
+    "enabled": true,
+    "PreToolUse": [
+      {
+        "matcher": "run_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/antigravity/pre_tool_guard.ps1",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  },
+  "verification-reminder": {
+    "enabled": true,
+    "PreInvocation": [
+      {
+        "type": "command",
+        "command": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/antigravity/pre_invocation_reminder.ps1",
+        "timeout": 10
+      }
+    ]
+  }
+}

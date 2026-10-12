@@ -1,0 +1,6 @@
+{
+  "name": "office-vision-antigravity-bootstrap",
+  "version": "1.0.0",
+  "purpose": "Project-specific Antigravity CLI configuration for the Office Vision Intelligence POC",
+  "model": "gemini-3.8-flash-high"
+}

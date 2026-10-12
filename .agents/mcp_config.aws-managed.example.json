@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "aws-mcp-managed": {
+      "serverUrl": "https://aws-mcp.us-east-1.api.aws/mcp",
+      "disabled": true,
+      "autoApprove": []
+    }
+  }
+}
