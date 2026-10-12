@@ -1,0 +1,10 @@
+version: 1
+# Synthetic POC identities only. No biometrics.
+restricted_zones:
+  zone_server_room:
+    min_security_level: 4
+    authorized_person_ids: ["person_it_admin_01", "person_it_admin_02"]
+business_hours_utc:
+  start: "08:00"
+  end: "19:00"
+dwell_alert_min_security_level: 3
