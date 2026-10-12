@@ -58,7 +58,7 @@ def test_simulator_api_routes(tmp_path, monkeypatch):
             assert res_list.status_code == 200
             scenarios = res_list.json()
             assert isinstance(scenarios, list)
-            assert len(scenarios) == 4
+            assert len(scenarios) == 7
             names = {s["name"] for s in scenarios}
             assert "normal_workday" in names
             assert "server_room_unauthorized_entry" in names

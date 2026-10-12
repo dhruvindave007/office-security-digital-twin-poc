@@ -1,8 +1,16 @@
 from datetime import datetime, timezone
 import json
+import math
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, Query, Request
+try:
+    from src.rules.policy import parse_utc_timestamp
+    from src.twin.history import occupancy_series, position_heatmap, track_path
+except ImportError:
+    from rules.policy import parse_utc_timestamp
+    from twin.history import occupancy_series, position_heatmap, track_path
+
 try:
     from src.twin.engine import DigitalTwinEngine
     from src.twin.models import Incident
@@ -275,3 +283,129 @@ async def patch_incident(
         rule_engine.forget(incident_id)
 
     return _row_to_incident_response(inc)
+
+
+@router.get("/tracks/{track_id}/path")
+async def get_track_path(
+    request: Request,
+    track_id: str,
+    start_time: Optional[str] = None,
+    end_time: Optional[str] = None,
+):
+    """Retrieve ordered path points for a specific track. Returns 404 if no points exist."""
+    engine = _get_engine(request)
+    events, _ = engine.store.get_events(
+        track_id=track_id,
+        event_type="PERSON_DETECTED",
+        start_time=start_time,
+        end_time=end_time,
+        limit=10000,
+    )
+    points = track_path(events)
+    if not points:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Track '{track_id}' has no path points.",
+        )
+    return points
+
+
+@router.get("/occupancy/history")
+async def get_occupancy_history(
+    request: Request,
+    start_time: Optional[str] = None,
+    end_time: Optional[str] = None,
+    bucket_seconds: int = Query(60),
+    zone_id: Optional[str] = None,
+):
+    """Retrieve time-series occupancy buckets across zones."""
+    if not start_time or not end_time:
+        raise HTTPException(
+            status_code=422,
+            detail="start_time and end_time query parameters are required.",
+        )
+    try:
+        start_dt = parse_utc_timestamp(start_time)
+        end_dt = parse_utc_timestamp(end_time)
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"Invalid timestamp format: {e}")
+
+    if end_dt <= start_dt:
+        raise HTTPException(
+            status_code=422,
+            detail="end_time must be strictly greater than start_time.",
+        )
+    if bucket_seconds < 1:
+        raise HTTPException(
+            status_code=422,
+            detail="bucket_seconds must be at least 1.",
+        )
+
+    total_seconds = (end_dt - start_dt).total_seconds()
+    num_buckets = math.ceil(total_seconds / bucket_seconds)
+    if num_buckets > 1440:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Request would generate {num_buckets} buckets, exceeding the maximum limit of 1440.",
+        )
+
+    engine = _get_engine(request)
+    events, _ = engine.store.get_events(end_time=end_time, limit=50000)
+    series = occupancy_series(events, start_dt, end_dt, bucket_seconds)
+
+    if zone_id:
+        filtered = []
+        for item in series:
+            occ = item["occupancy"]
+            filtered.append(
+                {
+                    "bucket_start": item["bucket_start"],
+                    "occupancy": {zone_id: occ.get(zone_id, 0)},
+                }
+            )
+        return filtered
+
+    return series
+
+
+@router.get("/heatmap")
+async def get_position_heatmap(
+    request: Request,
+    start_time: Optional[str] = None,
+    end_time: Optional[str] = None,
+    cell_size_m: float = Query(1.0),
+):
+    """Generate spatial 2D heatmap aggregated over PERSON_DETECTED observations."""
+    if cell_size_m < 0.25 or cell_size_m > 10.0:
+        raise HTTPException(
+            status_code=422,
+            detail="cell_size_m must be between 0.25 and 10.0.",
+        )
+
+    if start_time and end_time:
+        try:
+            start_dt = parse_utc_timestamp(start_time)
+            end_dt = parse_utc_timestamp(end_time)
+            if end_dt <= start_dt:
+                raise HTTPException(
+                    status_code=422,
+                    detail="end_time must be strictly greater than start_time.",
+                )
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=422, detail=f"Invalid timestamp format: {e}")
+
+    engine = _get_engine(request)
+    zones = engine.store.get_zones()
+    width_m = max((z.max_x for z in zones), default=1.0)
+    height_m = max((z.max_y for z in zones), default=1.0)
+
+    events, _ = engine.store.get_events(
+        event_type="PERSON_DETECTED",
+        start_time=start_time,
+        end_time=end_time,
+        limit=50000,
+    )
+    return position_heatmap(events, width_m, height_m, cell_size_m)
+
