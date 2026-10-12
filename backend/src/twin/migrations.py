@@ -220,17 +220,19 @@ def run_migrations(conn: sqlite3.Connection) -> List[int]:
     for version, description, sql_script in MIGRATIONS:
         if version not in applied_versions:
             logger.info("Applying migration v%d: %s", version, description)
+            iso_ts = datetime.utcnow().isoformat()
+            escaped_desc = description.replace("'", "''")
+            script = (
+                "BEGIN IMMEDIATE;\n"
+                + sql_script
+                + f"\nINSERT INTO schema_migrations (version, applied_at, description) VALUES ({version}, '{iso_ts}', '{escaped_desc}');\nCOMMIT;"
+            )
             try:
-                conn.execute("BEGIN IMMEDIATE;")
-                conn.executescript(sql_script)
-                conn.execute(
-                    "INSERT INTO schema_migrations (version, applied_at, description) VALUES (?, ?, ?);",
-                    (version, datetime.utcnow().isoformat(), description),
-                )
-                conn.commit()
+                conn.executescript(script)
                 applied_now.append(version)
             except Exception as e:
-                conn.rollback()
+                if conn.in_transaction:
+                    conn.execute("ROLLBACK;")
                 logger.error("Migration v%d failed and was rolled back: %s", version, e)
                 raise
 

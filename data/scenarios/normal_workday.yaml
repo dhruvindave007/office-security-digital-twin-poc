@@ -1,0 +1,45 @@
+name: normal_workday
+description: "Authorized staff and IT administrator during normal working hours."
+base_time_utc: "2026-01-15T10:00:00Z"
+steps:
+  - t: 0.0
+    camera_id: cam_reception_01
+    track_id: trk_emp_01
+    person_id: null
+    floor: [5.0, 5.0]
+    confidence: 0.95
+
+  - t: 10.0
+    camera_id: cam_workspace_01
+    track_id: trk_emp_01
+    person_id: null
+    floor: [20.0, 8.0]
+    confidence: 0.94
+
+  - t: 15.0
+    camera_id: cam_workspace_01
+    track_id: trk_emp_02
+    person_id: null
+    floor: [22.0, 10.0]
+    confidence: 0.92
+
+  - t: 20.0
+    camera_id: cam_workspace_01
+    track_id: trk_admin_01
+    person_id: person_it_admin_01
+    floor: [25.0, 8.0]
+    confidence: 0.96
+
+  - t: 30.0
+    camera_id: cam_server_01
+    track_id: trk_admin_01
+    person_id: person_it_admin_01
+    floor: [35.0, 5.0]
+    confidence: 0.97
+
+  - t: 60.0
+    camera_id: cam_server_01
+    track_id: trk_admin_01
+    person_id: person_it_admin_01
+    floor: [36.0, 5.0]
+    confidence: 0.95

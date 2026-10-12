@@ -3,17 +3,19 @@ import logging
 from typing import Optional
 
 try:
-    from twin.engine import DigitalTwinEngine
-    from vision.calibration import HomographyManager
-    from vision.geometry import CameraObservation, FloorPoint, PixelPoint, TwinObservation
-    from vision.topology import TopologyService
-    from vision.zones import VisionZoneResolver
-except ImportError:
     from src.twin.engine import DigitalTwinEngine
     from src.vision.calibration import HomographyManager
     from src.vision.geometry import CameraObservation, FloorPoint, PixelPoint, TwinObservation
     from src.vision.topology import TopologyService
     from src.vision.zones import VisionZoneResolver
+    from src.rules.engine import IncidentRuleEngine
+except ImportError:
+    from twin.engine import DigitalTwinEngine
+    from vision.calibration import HomographyManager
+    from vision.geometry import CameraObservation, FloorPoint, PixelPoint, TwinObservation
+    from vision.topology import TopologyService
+    from vision.zones import VisionZoneResolver
+    from rules.engine import IncidentRuleEngine
 
 logger = logging.getLogger("office_vision.vision.pipeline")
 
@@ -26,9 +28,9 @@ class ObservationPipeline:
     2. Projects camera pixel coordinates (u, v) -> floor coordinates (x, y) via calibrated homography.
     3. Resolves spatial zone containment via STRtree spatial index.
     4. Ingests transformed observation directly into DigitalTwinEngine.ingest_observation().
-    5. Returns structured TwinObservation with emitted ledger events.
+    5. Returns structured TwinObservation with emitted ledger events and raised incidents.
 
-    Prohibitions: Zero detector, tracker, RTSP stream, Bedrock, or simulator runtime logic.
+    Prohibitions: Zero detector, tracker, RTSP stream, or Bedrock runtime logic. (Deterministic rule evaluation allowed).
     """
 
     def __init__(
@@ -37,11 +39,13 @@ class ObservationPipeline:
         zone_resolver: VisionZoneResolver,
         twin_engine: DigitalTwinEngine,
         topology_service: Optional[TopologyService] = None,
+        rule_engine: Optional[IncidentRuleEngine] = None,
     ):
         self.homography_manager = homography_manager
         self.zone_resolver = zone_resolver
         self.twin_engine = twin_engine
         self.topology_service = topology_service
+        self.rule_engine = rule_engine
 
     def process_observation(self, observation: CameraObservation) -> TwinObservation:
         """Process a single camera observation and push state into the Digital Twin Core.
@@ -88,6 +92,11 @@ class ObservationPipeline:
             person_id=observation.person_id,
         )
 
+        # 4. Evaluate security incident rules
+        raised_incidents = []
+        if self.rule_engine is not None:
+            raised_incidents = self.rule_engine.evaluate(emitted_events)
+
         return TwinObservation(
             track_id=observation.track_id,
             camera_id=observation.camera_id,
@@ -98,4 +107,5 @@ class ObservationPipeline:
             confidence=observation.confidence,
             timestamp=timestamp,
             person_id=observation.person_id,
+            raised_incidents=raised_incidents,
         )

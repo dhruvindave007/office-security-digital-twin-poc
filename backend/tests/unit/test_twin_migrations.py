@@ -165,3 +165,33 @@ def test_zone_over_capacity_allowed_and_invalid_type_rejected():
             """
         )
 
+
+def test_migration_atomic_rollback(monkeypatch):
+    """Verify that a failing migration rolls back atomically without partial changes."""
+    import src.twin.migrations as mig_mod
+
+    conn = sqlite3.connect(":memory:")
+    # Run v1 and v2 first
+    applied = mig_mod.run_migrations(conn)
+    assert 1 in applied and 2 in applied
+
+    # Append failing migration v99
+    bad_migration = (
+        99,
+        "Failing migration with syntax error",
+        "CREATE TABLE test_rollback_table (id INTEGER PRIMARY KEY);\nINVALID SQL SYNTAX HERE;",
+    )
+    monkeypatch.setattr(mig_mod, "MIGRATIONS", list(mig_mod.MIGRATIONS) + [bad_migration])
+
+    with pytest.raises(sqlite3.OperationalError):
+        mig_mod.run_migrations(conn)
+
+    # Assert test_rollback_table does not exist
+    cur = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='test_rollback_table';")
+    assert cur.fetchone() is None
+
+    # Assert version 99 is not in schema_migrations
+    cur = conn.execute("SELECT version FROM schema_migrations WHERE version = 99;")
+    assert cur.fetchone() is None
+
+

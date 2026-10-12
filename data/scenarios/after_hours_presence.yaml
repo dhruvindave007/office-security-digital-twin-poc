@@ -1,0 +1,24 @@
+name: after_hours_presence
+description: "Presence detected in open workspace after official business hours."
+base_time_utc: "2026-01-15T20:30:00Z"
+steps:
+  - t: 0.0
+    camera_id: cam_workspace_01
+    track_id: sim_trk_night_01
+    person_id: null
+    floor: [20.0, 8.0]
+    confidence: 0.94
+
+  - t: 10.0
+    camera_id: cam_workspace_01
+    track_id: sim_trk_night_01
+    person_id: null
+    floor: [20.5, 8.2]
+    confidence: 0.95
+
+  - t: 20.0
+    camera_id: cam_workspace_01
+    track_id: sim_trk_night_01
+    person_id: null
+    floor: [21.0, 8.5]
+    confidence: 0.93

@@ -1,0 +1,101 @@
+name: server_room_unauthorized_entry
+description: "Unknown visitor walks reception -> workspace -> server room and stays."
+base_time_utc: "2026-01-15T10:00:00Z"
+steps:
+  - t: 0.0
+    camera_id: cam_reception_01
+    track_id: sim_trk_001
+    person_id: null
+    floor: [5.0, 5.0]
+    confidence: 0.92
+
+  - t: 10.0
+    camera_id: cam_workspace_01
+    track_id: sim_trk_001
+    person_id: null
+    floor: [20.0, 8.0]
+    confidence: 0.94
+
+  - t: 20.0
+    camera_id: cam_server_01
+    track_id: sim_trk_001
+    person_id: null
+    floor: [35.0, 5.0]
+    confidence: 0.95
+
+  - t: 50.0
+    camera_id: cam_server_01
+    track_id: sim_trk_001
+    person_id: null
+    floor: [35.0, 5.0]
+    confidence: 0.95
+
+  - t: 80.0
+    camera_id: cam_server_01
+    track_id: sim_trk_001
+    person_id: null
+    floor: [35.2, 5.1]
+    confidence: 0.95
+
+  - t: 110.0
+    camera_id: cam_server_01
+    track_id: sim_trk_001
+    person_id: null
+    floor: [35.1, 5.0]
+    confidence: 0.94
+
+  - t: 140.0
+    camera_id: cam_server_01
+    track_id: sim_trk_001
+    person_id: null
+    floor: [35.0, 5.2]
+    confidence: 0.95
+
+  - t: 170.0
+    camera_id: cam_server_01
+    track_id: sim_trk_001
+    person_id: null
+    floor: [35.3, 5.0]
+    confidence: 0.93
+
+  - t: 200.0
+    camera_id: cam_server_01
+    track_id: sim_trk_001
+    person_id: null
+    floor: [35.0, 5.1]
+    confidence: 0.94
+
+  - t: 230.0
+    camera_id: cam_server_01
+    track_id: sim_trk_001
+    person_id: null
+    floor: [35.2, 5.0]
+    confidence: 0.95
+
+  - t: 260.0
+    camera_id: cam_server_01
+    track_id: sim_trk_001
+    person_id: null
+    floor: [35.1, 5.2]
+    confidence: 0.94
+
+  - t: 290.0
+    camera_id: cam_server_01
+    track_id: sim_trk_001
+    person_id: null
+    floor: [35.0, 5.0]
+    confidence: 0.95
+
+  - t: 320.0
+    camera_id: cam_server_01
+    track_id: sim_trk_001
+    person_id: null
+    floor: [35.2, 5.1]
+    confidence: 0.96
+
+  - t: 350.0
+    camera_id: cam_server_01
+    track_id: sim_trk_001
+    person_id: null
+    floor: [35.0, 5.0]
+    confidence: 0.95

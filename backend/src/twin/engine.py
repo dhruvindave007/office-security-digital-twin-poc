@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 import logging
 import os
@@ -266,7 +266,7 @@ class DigitalTwinEngine:
     def prune_tracks(self, now_iso: Optional[str] = None) -> List[TwinEvent]:
         """Prune inactive tracks exceeding TTL and emit TRACK_LOST events."""
         if not now_iso:
-            now_iso = datetime.utcnow().isoformat()
+            now_iso = datetime.now(timezone.utc).isoformat()
 
         pruned_entities = self.state.prune_inactive_tracks(now_iso, self.track_ttl_seconds)
         lost_events: List[TwinEvent] = []
