@@ -8,6 +8,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 try:
+    from src.access.config import load_access_config
+    from src.access.service import AccessControlService
     from src.ai.bedrock_client import BedrockClient
     from src.ai.model_registry import DynamicValidator
     from src.api.routes_simulator import router as simulator_router
@@ -15,6 +17,7 @@ try:
     from src.api.routes_twin import router as twin_router
     from src.api.routes_vision import router as vision_router
     from src.config import get_settings
+    from src.rules.correlation import CorrelationEngine
     from src.rules.engine import IncidentRuleEngine
     from src.rules.policy import load_access_policy
     from src.simulator.runner import ScenarioRunner
@@ -23,6 +26,8 @@ try:
     from src.vision.seed import VisionSeedLoader
     from src.vision.zones import VisionZoneResolver
 except ImportError:
+    from access.config import load_access_config
+    from access.service import AccessControlService
     from ai.bedrock_client import BedrockClient
     from ai.model_registry import DynamicValidator
     from api.routes_simulator import router as simulator_router
@@ -30,6 +35,7 @@ except ImportError:
     from api.routes_twin import router as twin_router
     from api.routes_vision import router as vision_router
     from config import get_settings
+    from rules.correlation import CorrelationEngine
     from rules.engine import IncidentRuleEngine
     from rules.policy import load_access_policy
     from simulator.runner import ScenarioRunner
@@ -90,6 +96,14 @@ async def lifespan(app: FastAPI):
     app.state.rule_engine = None
     app.state.observation_pipeline = None
     app.state.scenario_runner = None
+    app.state.access_service = None
+
+    policy = load_access_policy(settings.rules_policy_path)
+    access_config = None
+    try:
+        access_config = load_access_config(settings.access_config_path)
+    except Exception as e:
+        logger.warning(f"Failed to load access config from '{settings.access_config_path}': {e}")
 
     try:
         homography_mgr, camera_graph, topology = VisionSeedLoader.load_all(
@@ -97,8 +111,22 @@ async def lifespan(app: FastAPI):
             settings.vision_topology_dir,
         )
         zone_resolver = VisionZoneResolver.from_twin_store(twin_engine.store)
-        policy = load_access_policy(settings.rules_policy_path)
-        rule_engine = IncidentRuleEngine(twin_engine.store, twin_engine.state, policy)
+
+        correlation_engine = None
+        if access_config and topology:
+            correlation_engine = CorrelationEngine(
+                policy=policy,
+                access_config=access_config,
+                topology=topology,
+                store=twin_engine.store,
+            )
+
+        rule_engine = IncidentRuleEngine(
+            twin_engine.store,
+            twin_engine.state,
+            policy,
+            correlation=correlation_engine,
+        )
         obs_pipeline = ObservationPipeline(
             homography_manager=homography_mgr,
             zone_resolver=zone_resolver,
@@ -108,12 +136,40 @@ async def lifespan(app: FastAPI):
         )
         scenario_runner = ScenarioRunner(obs_pipeline, homography_mgr)
 
+        access_service = None
+        if access_config:
+            access_service = AccessControlService(
+                store=twin_engine.store,
+                config=access_config,
+                rule_engine=rule_engine,
+            )
+
         app.state.homography_manager = homography_mgr
         app.state.rule_engine = rule_engine
         app.state.observation_pipeline = obs_pipeline
         app.state.scenario_runner = scenario_runner
+        app.state.access_service = access_service
     except Exception as e:
-        logger.error(f"Failed to initialize vision/rules pipeline: {e}", exc_info=True)
+        logger.warning(
+            f"Failed to initialize vision or topology; initializing rule engine without correlation: {e}",
+            exc_info=True,
+        )
+        rule_engine = IncidentRuleEngine(
+            twin_engine.store,
+            twin_engine.state,
+            policy,
+            correlation=None,
+        )
+        app.state.rule_engine = rule_engine
+        if access_config:
+            try:
+                app.state.access_service = AccessControlService(
+                    store=twin_engine.store,
+                    config=access_config,
+                    rule_engine=rule_engine,
+                )
+            except Exception as e2:
+                logger.warning(f"Failed to initialize access control service: {e2}")
 
     # 4. Background prune loop
     async def prune_loop():
