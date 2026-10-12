@@ -34,3 +34,12 @@ def test_import_src_rules_engine():
 
 def test_import_src_vision_pipeline():
     _run_import("import src.vision.pipeline")
+
+
+def test_import_src_access_service():
+    _run_import("import src.access.service")
+
+
+def test_import_src_rules_correlation():
+    _run_import("import src.rules.correlation")
+

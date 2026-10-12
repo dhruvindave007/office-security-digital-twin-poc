@@ -1,11 +1,13 @@
 try:
-    from config import Settings
+    from src.config import Settings, get_settings
 except ImportError:
-    from src.config import Settings
+    from config import Settings, get_settings
 
 
-def test_settings_defaults():
+def test_settings_defaults(monkeypatch):
     """Test default settings configuration."""
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    get_settings.cache_clear()
     settings = Settings()
     assert settings.app_name == "Office Vision Intelligence Platform"
     assert settings.app_env == "development"

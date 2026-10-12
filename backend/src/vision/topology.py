@@ -155,3 +155,23 @@ class TopologyService:
                     reachable.append(cam_id)
 
         return sorted(reachable)
+
+    def min_transit_seconds(
+        self,
+        from_camera_id: str,
+        to_camera_id: str,
+    ) -> Optional[float]:
+        """Compute the minimum physical transit time in seconds between two cameras.
+
+        Returns 0.0 for the same camera, the sum of min_transit_seconds along
+        the shortest path, or None if unreachable.
+        """
+        if from_camera_id == to_camera_id:
+            if self.graph.get_node(from_camera_id) is not None:
+                return 0.0
+            return None
+
+        path_info = self.get_shortest_path(from_camera_id, to_camera_id, weight="min_transit")
+        if path_info is None:
+            return None
+        return float(path_info[1])
