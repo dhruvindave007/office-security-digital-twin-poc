@@ -1,0 +1,125 @@
+facility:
+  name: "Headquarters Demo Office"
+  width_m: 40.0
+  height_m: 25.0
+  coordinate_system: "metric_meters"
+
+zones:
+  - zone_id: "zone_reception"
+    name: "Reception & Lobby"
+    zone_type: "public"
+    security_level: 1
+    max_occupancy: 15
+    geometry_version: 1
+    vertices:
+      - vertex_order: 0
+        x: 0.0
+        y: 0.0
+      - vertex_order: 1
+        x: 12.0
+        y: 0.0
+      - vertex_order: 2
+        x: 12.0
+        y: 10.0
+      - vertex_order: 3
+        x: 0.0
+        y: 10.0
+
+  - zone_id: "zone_open_workspace"
+    name: "Open Work Area"
+    zone_type: "workspace"
+    security_level: 2
+    max_occupancy: 30
+    geometry_version: 1
+    vertices:
+      - vertex_order: 0
+        x: 12.0
+        y: 0.0
+      - vertex_order: 1
+        x: 30.0
+        y: 0.0
+      - vertex_order: 2
+        x: 30.0
+        y: 18.0
+      - vertex_order: 3
+        x: 12.0
+        y: 18.0
+
+  - zone_id: "zone_server_room"
+    name: "Primary Server Room"
+    zone_type: "secure"
+    security_level: 4
+    max_occupancy: 3
+    geometry_version: 1
+    vertices:
+      - vertex_order: 0
+        x: 30.0
+        y: 0.0
+      - vertex_order: 1
+        x: 40.0
+        y: 0.0
+      - vertex_order: 2
+        x: 40.0
+        y: 10.0
+      - vertex_order: 3
+        x: 30.0
+        y: 10.0
+
+  - zone_id: "zone_executive_boardroom"
+    name: "Executive Boardroom"
+    zone_type: "restricted"
+    security_level: 3
+    max_occupancy: 12
+    geometry_version: 1
+    vertices:
+      - vertex_order: 0
+        x: 30.0
+        y: 10.0
+      - vertex_order: 1
+        x: 40.0
+        y: 10.0
+      - vertex_order: 2
+        x: 40.0
+        y: 25.0
+      - vertex_order: 3
+        x: 30.0
+        y: 25.0
+
+  - zone_id: "zone_hallway"
+    name: "Main Circulation Corridor"
+    zone_type: "corridor"
+    security_level: 1
+    max_occupancy: null
+    geometry_version: 1
+    vertices:
+      - vertex_order: 0
+        x: 0.0
+        y: 10.0
+      - vertex_order: 1
+        x: 12.0
+        y: 10.0
+      - vertex_order: 2
+        x: 12.0
+        y: 25.0
+      - vertex_order: 3
+        x: 0.0
+        y: 25.0
+
+cameras:
+  - camera_id: "cam_reception_01"
+    name: "Lobby Main Entrance"
+    primary_zone_id: "zone_reception"
+    location_description: "Ceiling mount facing north entrance door"
+    status: "active"
+
+  - camera_id: "cam_workspace_01"
+    name: "Workspace West Overview"
+    primary_zone_id: "zone_open_workspace"
+    location_description: "Corner mount covering open seating rows"
+    status: "active"
+
+  - camera_id: "cam_server_01"
+    name: "Server Room Access Vault"
+    primary_zone_id: "zone_server_room"
+    location_description: "High-angle view covering server rack aisles and access door"
+    status: "active"

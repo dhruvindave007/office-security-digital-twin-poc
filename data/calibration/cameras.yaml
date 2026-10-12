@@ -1,0 +1,30 @@
+cameras:
+  - camera_id: "cam_reception_01"
+    name: "Lobby Main Entrance"
+    primary_zone_id: "zone_reception"
+    resolution_width: 1920
+    resolution_height: 1080
+    fps: 30.0
+    status: "active"
+    homography_file: "cam_reception_01.npy"
+    location_description: "Ceiling mount facing north entrance door"
+
+  - camera_id: "cam_workspace_01"
+    name: "Workspace West Overview"
+    primary_zone_id: "zone_open_workspace"
+    resolution_width: 1920
+    resolution_height: 1080
+    fps: 30.0
+    status: "active"
+    homography_file: "cam_workspace_01.npy"
+    location_description: "Corner mount covering open seating rows"
+
+  - camera_id: "cam_server_01"
+    name: "Server Room Access Vault"
+    primary_zone_id: "zone_server_room"
+    resolution_width: 1920
+    resolution_height: 1080
+    fps: 30.0
+    status: "active"
+    homography_file: "cam_server_01.npy"
+    location_description: "High-angle view covering server rack aisles and access door"

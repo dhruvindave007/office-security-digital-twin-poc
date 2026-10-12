@@ -1,0 +1,17 @@
+facility_name: "Headquarters Demo Office"
+version: 1
+
+edges:
+  - from_camera_id: "cam_reception_01"
+    to_camera_id: "cam_workspace_01"
+    distance_meters: 14.0
+    min_transit_seconds: 5.0
+    max_transit_seconds: 30.0
+    bidirectional: true
+
+  - from_camera_id: "cam_workspace_01"
+    to_camera_id: "cam_server_01"
+    distance_meters: 12.0
+    min_transit_seconds: 4.0
+    max_transit_seconds: 25.0
+    bidirectional: true
