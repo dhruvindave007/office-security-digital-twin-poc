@@ -1,11 +1,11 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import math
 from typing import Any, Dict, List, Optional, Tuple
 
 try:
-    from twin.models import TwinEvent
+    from src.twin.models import Incident, TwinEvent
 except ImportError:
-    from src.twin.models import TwinEvent
+    from twin.models import Incident, TwinEvent
 
 
 @dataclass(frozen=True)
@@ -131,3 +131,4 @@ class TwinObservation:
     confidence: float
     timestamp: str
     person_id: Optional[str] = None
+    raised_incidents: List[Incident] = field(default_factory=list)

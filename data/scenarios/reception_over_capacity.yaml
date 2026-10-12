@@ -1,0 +1,115 @@
+name: reception_over_capacity
+description: "16 distinct tracks enter reception exceeding maximum occupancy limit of 15."
+base_time_utc: "2026-01-15T10:00:00Z"
+steps:
+  - t: 0.0
+    camera_id: cam_reception_01
+    track_id: sim_trk_rec_01
+    person_id: null
+    floor: [2.0, 2.0]
+    confidence: 0.95
+
+  - t: 1.0
+    camera_id: cam_reception_01
+    track_id: sim_trk_rec_02
+    person_id: null
+    floor: [2.5, 2.5]
+    confidence: 0.94
+
+  - t: 2.0
+    camera_id: cam_reception_01
+    track_id: sim_trk_rec_03
+    person_id: null
+    floor: [3.0, 2.0]
+    confidence: 0.93
+
+  - t: 3.0
+    camera_id: cam_reception_01
+    track_id: sim_trk_rec_04
+    person_id: null
+    floor: [3.5, 3.0]
+    confidence: 0.95
+
+  - t: 4.0
+    camera_id: cam_reception_01
+    track_id: sim_trk_rec_05
+    person_id: null
+    floor: [4.0, 2.5]
+    confidence: 0.92
+
+  - t: 5.0
+    camera_id: cam_reception_01
+    track_id: sim_trk_rec_06
+    person_id: null
+    floor: [4.5, 3.5]
+    confidence: 0.96
+
+  - t: 6.0
+    camera_id: cam_reception_01
+    track_id: sim_trk_rec_07
+    person_id: null
+    floor: [5.0, 2.0]
+    confidence: 0.94
+
+  - t: 7.0
+    camera_id: cam_reception_01
+    track_id: sim_trk_rec_08
+    person_id: null
+    floor: [5.5, 4.0]
+    confidence: 0.95
+
+  - t: 8.0
+    camera_id: cam_reception_01
+    track_id: sim_trk_rec_09
+    person_id: null
+    floor: [6.0, 2.5]
+    confidence: 0.93
+
+  - t: 9.0
+    camera_id: cam_reception_01
+    track_id: sim_trk_rec_10
+    person_id: null
+    floor: [6.5, 3.0]
+    confidence: 0.95
+
+  - t: 10.0
+    camera_id: cam_reception_01
+    track_id: sim_trk_rec_11
+    person_id: null
+    floor: [7.0, 2.0]
+    confidence: 0.92
+
+  - t: 11.0
+    camera_id: cam_reception_01
+    track_id: sim_trk_rec_12
+    person_id: null
+    floor: [7.5, 3.5]
+    confidence: 0.94
+
+  - t: 12.0
+    camera_id: cam_reception_01
+    track_id: sim_trk_rec_13
+    person_id: null
+    floor: [8.0, 2.5]
+    confidence: 0.95
+
+  - t: 13.0
+    camera_id: cam_reception_01
+    track_id: sim_trk_rec_14
+    person_id: null
+    floor: [8.5, 4.0]
+    confidence: 0.96
+
+  - t: 14.0
+    camera_id: cam_reception_01
+    track_id: sim_trk_rec_15
+    person_id: null
+    floor: [9.0, 3.0]
+    confidence: 0.93
+
+  - t: 15.0
+    camera_id: cam_reception_01
+    track_id: sim_trk_rec_16
+    person_id: null
+    floor: [9.5, 3.5]
+    confidence: 0.95

@@ -1,5 +1,5 @@
 from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class VertexSchema(BaseModel):
@@ -106,3 +106,17 @@ class IncidentsListResponse(BaseModel):
 
     total: int
     incidents: List[IncidentResponse]
+
+
+class IncidentPatchRequest(BaseModel):
+    """Schema for updating incident status."""
+    status: str
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, v: str) -> str:
+        allowed = {"OPEN", "INVESTIGATING", "RESOLVED", "FALSE_POSITIVE"}
+        if v not in allowed:
+            raise ValueError(f"Invalid status '{v}'. Allowed: {', '.join(sorted(allowed))}")
+        return v
+

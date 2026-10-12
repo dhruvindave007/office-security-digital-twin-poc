@@ -5,9 +5,9 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import yaml
 
 try:
-    from vision.seed import _resolve_data_path
-except ImportError:
     from src.vision.seed import _resolve_data_path
+except ImportError:
+    from vision.seed import _resolve_data_path
 
 
 def parse_utc_timestamp(ts: str) -> datetime:

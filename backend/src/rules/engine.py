@@ -3,17 +3,17 @@ import logging
 from typing import Any, Dict, List, Optional, Tuple
 
 try:
-    from twin.engine import generate_uuid7
-    from twin.models import Incident, TwinEvent
-    from twin.state import TwinState
-    from twin.store import TwinStore
-    from rules.policy import AccessPolicy, parse_utc_timestamp
-except ImportError:
     from src.twin.engine import generate_uuid7
     from src.twin.models import Incident, TwinEvent
     from src.twin.state import TwinState
     from src.twin.store import TwinStore
     from src.rules.policy import AccessPolicy, parse_utc_timestamp
+except ImportError:
+    from twin.engine import generate_uuid7
+    from twin.models import Incident, TwinEvent
+    from twin.state import TwinState
+    from twin.store import TwinStore
+    from rules.policy import AccessPolicy, parse_utc_timestamp
 
 logger = logging.getLogger("office_vision.rules.engine")
 
@@ -43,10 +43,12 @@ class IncidentRuleEngine:
         return None
 
     def _load_open_incidents(self) -> None:
-        """Load open incidents from ledger into in-memory dedupe registry on startup/restart."""
+        """Load open and investigating incidents from ledger into in-memory dedupe registry on startup/restart."""
         open_list = self.store.get_incidents(status="OPEN", limit=500)
-        # Iterate in reverse (oldest to newest) so latest records establish current state
-        for inc in reversed(open_list):
+        investigating_list = self.store.get_incidents(status="INVESTIGATING", limit=500)
+        active_list = open_list + investigating_list
+        active_list.sort(key=lambda inc: inc.start_time)
+        for inc in active_list:
             key = self._get_dedupe_key(inc.incident_type, inc.zone_id, inc.track_id)
             if key:
                 self._open_incidents[key] = inc
@@ -141,21 +143,25 @@ class IncidentRuleEngine:
                             changed[inc.incident_id] = inc
 
             # 2b. ZONE_OVER_CAPACITY Auto-resolve
-            if event.event_type in ("ZONE_EXITED", "TRACK_LOST"):
-                resolved_zone = event.zone_id or event.previous_zone_id
-                if resolved_zone:
-                    zone = self.store.get_zone(resolved_zone)
-                    if zone and zone.max_occupancy is not None:
-                        occupancy = self.state.get_zone_occupancy(resolved_zone)
-                        if occupancy <= zone.max_occupancy:
-                            key = ("ZONE_OVER_CAPACITY", resolved_zone)
-                            if key in self._open_incidents:
-                                inc = self._open_incidents.pop(key)
-                                inc.status = "RESOLVED"
-                                inc.end_time = event.timestamp
-                                inc.updated_at = event.timestamp
-                                self._append_supporting_event(inc, event)
-                                changed[inc.incident_id] = inc
+            resolved_zone = None
+            if event.event_type == "CROSS_ZONE_TRANSITION":
+                resolved_zone = event.previous_zone_id
+            elif event.event_type in ("ZONE_EXITED", "TRACK_LOST"):
+                resolved_zone = event.zone_id
+
+            if resolved_zone:
+                zone = self.store.get_zone(resolved_zone)
+                if zone and zone.max_occupancy is not None:
+                    occupancy = self.state.get_zone_occupancy(resolved_zone)
+                    if occupancy <= zone.max_occupancy:
+                        key = ("ZONE_OVER_CAPACITY", resolved_zone)
+                        if key in self._open_incidents:
+                            inc = self._open_incidents.pop(key)
+                            inc.status = "RESOLVED"
+                            inc.end_time = event.timestamp
+                            inc.updated_at = event.timestamp
+                            self._append_supporting_event(inc, event)
+                            changed[inc.incident_id] = inc
 
             # 3. DWELL_ANOMALY
             if event.event_type == "DWELL_TIME_EXCEEDED" and event.zone_id:

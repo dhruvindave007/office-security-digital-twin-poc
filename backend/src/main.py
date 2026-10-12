@@ -1,29 +1,49 @@
+import asyncio
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timezone
+import logging
 
 import boto3
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 try:
-    from ai.bedrock_client import BedrockClient
-    from ai.model_registry import DynamicValidator
-    from api.routes_system import router as system_router
-    from api.routes_twin import router as twin_router
-    from config import get_settings
-    from twin.bootstrap import TwinBootstrapService
-except ImportError:
     from src.ai.bedrock_client import BedrockClient
     from src.ai.model_registry import DynamicValidator
+    from src.api.routes_simulator import router as simulator_router
     from src.api.routes_system import router as system_router
     from src.api.routes_twin import router as twin_router
+    from src.api.routes_vision import router as vision_router
     from src.config import get_settings
+    from src.rules.engine import IncidentRuleEngine
+    from src.rules.policy import load_access_policy
+    from src.simulator.runner import ScenarioRunner
     from src.twin.bootstrap import TwinBootstrapService
+    from src.vision.pipeline import ObservationPipeline
+    from src.vision.seed import VisionSeedLoader
+    from src.vision.zones import VisionZoneResolver
+except ImportError:
+    from ai.bedrock_client import BedrockClient
+    from ai.model_registry import DynamicValidator
+    from api.routes_simulator import router as simulator_router
+    from api.routes_system import router as system_router
+    from api.routes_twin import router as twin_router
+    from api.routes_vision import router as vision_router
+    from config import get_settings
+    from rules.engine import IncidentRuleEngine
+    from rules.policy import load_access_policy
+    from simulator.runner import ScenarioRunner
+    from twin.bootstrap import TwinBootstrapService
+    from vision.pipeline import ObservationPipeline
+    from vision.seed import VisionSeedLoader
+    from vision.zones import VisionZoneResolver
+
+logger = logging.getLogger("office_vision.main")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Lifespan handler executing non-billable Bedrock readiness validation and Digital Twin bootstrap."""
+    """Lifespan handler executing non-billable Bedrock readiness validation, Digital Twin bootstrap, and vision/rules pipeline."""
     settings = get_settings()
 
     # 1. Non-billable Bedrock readiness inspection
@@ -44,7 +64,7 @@ async def lifespan(app: FastAPI):
         "multimodal_supported": caps.supports_multimodal,
         "validation_source": caps.source,
         "credential_status": cred_info,
-        "verified_at": datetime.utcnow().isoformat(),
+        "verified_at": datetime.now(timezone.utc).isoformat(),
         "boto3_version": boto3.__version__,
     }
 
@@ -57,7 +77,61 @@ async def lifespan(app: FastAPI):
     )
     app.state.twin_engine = twin_engine
 
-    yield
+    # 3. Vision Geometry, Deterministic Rules, and Simulator bootstrap
+    app.state.homography_manager = None
+    app.state.rule_engine = None
+    app.state.observation_pipeline = None
+    app.state.scenario_runner = None
+
+    try:
+        homography_mgr, camera_graph, topology = VisionSeedLoader.load_all(
+            settings.vision_calibration_dir,
+            settings.vision_topology_dir,
+        )
+        zone_resolver = VisionZoneResolver.from_twin_store(twin_engine.store)
+        policy = load_access_policy(settings.rules_policy_path)
+        rule_engine = IncidentRuleEngine(twin_engine.store, twin_engine.state, policy)
+        obs_pipeline = ObservationPipeline(
+            homography_manager=homography_mgr,
+            zone_resolver=zone_resolver,
+            twin_engine=twin_engine,
+            topology_service=topology,
+            rule_engine=rule_engine,
+        )
+        scenario_runner = ScenarioRunner(obs_pipeline, homography_mgr)
+
+        app.state.homography_manager = homography_mgr
+        app.state.rule_engine = rule_engine
+        app.state.observation_pipeline = obs_pipeline
+        app.state.scenario_runner = scenario_runner
+    except Exception as e:
+        logger.error(f"Failed to initialize vision/rules pipeline: {e}", exc_info=True)
+
+    # 4. Background prune loop
+    async def prune_loop():
+        try:
+            while True:
+                await asyncio.sleep(settings.twin_prune_interval_seconds)
+                now_iso = datetime.now(timezone.utc).isoformat()
+                lost_events = twin_engine.prune_tracks(now_iso)
+                if lost_events and getattr(app.state, "rule_engine", None):
+                    for ev in lost_events:
+                        app.state.rule_engine.evaluate(ev)
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            logger.error(f"Error in twin prune loop: {e}", exc_info=True)
+
+    prune_task = asyncio.create_task(prune_loop())
+
+    try:
+        yield
+    finally:
+        prune_task.cancel()
+        try:
+            await prune_task
+        except asyncio.CancelledError:
+            pass
 
 
 settings = get_settings()
@@ -78,6 +152,8 @@ app.add_middleware(
 
 app.include_router(system_router)
 app.include_router(twin_router)
+app.include_router(vision_router)
+app.include_router(simulator_router)
 
 
 @app.get("/health", tags=["System"])

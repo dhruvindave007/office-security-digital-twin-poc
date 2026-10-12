@@ -1,5 +1,5 @@
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 import threading
 from typing import Any, Dict, List, Optional, Set, Tuple
 
@@ -126,12 +126,16 @@ class TwinState:
     def prune_inactive_tracks(self, now_iso: str, ttl_seconds: float) -> List[TrackedEntity]:
         """Evict entities not seen within ttl_seconds and return pruned records."""
         now_dt = datetime.fromisoformat(now_iso.replace("Z", "+00:00"))
+        if now_dt.tzinfo is None:
+            now_dt = now_dt.replace(tzinfo=timezone.utc)
         pruned: List[TrackedEntity] = []
 
         with self._lock:
             inactive_ids = []
             for track_id, entity in self._active_tracks.items():
                 last_seen_dt = datetime.fromisoformat(entity.last_seen.replace("Z", "+00:00"))
+                if last_seen_dt.tzinfo is None:
+                    last_seen_dt = last_seen_dt.replace(tzinfo=timezone.utc)
                 elapsed = (now_dt - last_seen_dt).total_seconds()
                 if elapsed > ttl_seconds:
                     inactive_ids.append(track_id)
