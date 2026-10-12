@@ -1,0 +1,159 @@
+from pathlib import Path
+import pytest
+
+from src.rules.engine import IncidentRuleEngine
+from src.rules.policy import load_access_policy
+from src.simulator.runner import ScenarioRunner
+from src.simulator.scenarios import Scenario, ScenarioStep, list_scenarios, load_scenario
+from src.twin.bootstrap import TwinBootstrapService
+from src.twin.engine import DigitalTwinEngine
+from src.vision.pipeline import ObservationPipeline
+from src.vision.seed import VisionSeedLoader
+from src.vision.zones import VisionZoneResolver
+
+
+def _create_test_pipeline(tmp_path: Path):
+    """Create a fully wired ObservationPipeline backed by a temporary SQLite database."""
+    db_path = str(tmp_path / "test_twin.db")
+    twin_engine = TwinBootstrapService.bootstrap(
+        db_path=db_path,
+        seed_path="src/twin/floorplan_seed.yaml",
+    )
+
+    homography_mgr, camera_graph, topology = VisionSeedLoader.load_all()
+    zone_resolver = VisionZoneResolver.from_twin_store(twin_engine.store)
+    policy = load_access_policy("data/rules/access_policy.yaml")
+    rule_engine = IncidentRuleEngine(twin_engine.store, twin_engine.state, policy)
+
+    pipeline = ObservationPipeline(
+        homography_manager=homography_mgr,
+        zone_resolver=zone_resolver,
+        twin_engine=twin_engine,
+        topology_service=topology,
+        rule_engine=rule_engine,
+    )
+    return pipeline, homography_mgr, twin_engine
+
+
+def test_scenario_loader_validation():
+    """Verify ScenarioStep and Scenario validation rules."""
+    # Valid step
+    step = ScenarioStep(t=0.0, camera_id="cam_01", track_id="trk_01", floor=[5.0, 5.0])
+    assert step.t == 0.0
+
+    # Empty camera_id
+    with pytest.raises(ValueError, match="camera_id cannot be empty"):
+        ScenarioStep(t=0.0, camera_id="", track_id="trk_01", floor=[5.0, 5.0])
+
+    # Empty track_id
+    with pytest.raises(ValueError, match="track_id cannot be empty"):
+        ScenarioStep(t=0.0, camera_id="cam_01", track_id="", floor=[5.0, 5.0])
+
+    # Bad floor
+    with pytest.raises(ValueError, match="floor coordinates must be a list of 2 numbers"):
+        ScenarioStep(t=0.0, camera_id="cam_01", track_id="trk_01", floor=[5.0])
+
+    # Unsorted steps in Scenario
+    s1 = ScenarioStep(t=10.0, camera_id="cam_01", track_id="trk_01", floor=[5.0, 5.0])
+    s2 = ScenarioStep(t=5.0, camera_id="cam_01", track_id="trk_01", floor=[5.0, 5.0])
+    with pytest.raises(ValueError, match="must be sorted by time offset 't'"):
+        Scenario(name="bad_order", description="", base_time_utc="2026-01-15T10:00:00Z", steps=[s1, s2])
+
+
+def test_list_and_load_scenarios():
+    """Verify discovery and loading of all shipped scenarios."""
+    scenarios = list_scenarios("data/scenarios")
+    names = {s.name for s in scenarios}
+    assert "normal_workday" in names
+    assert "server_room_unauthorized_entry" in names
+    assert "reception_over_capacity" in names
+    assert "after_hours_presence" in names
+
+
+def test_scenario_normal_workday(tmp_path):
+    """Verify normal_workday produces exactly 0 incidents."""
+    pipeline, homography_mgr, _ = _create_test_pipeline(tmp_path)
+    runner = ScenarioRunner(pipeline, homography_mgr)
+
+    scenario = load_scenario("data/scenarios/normal_workday.yaml")
+    result = runner.run(scenario)
+
+    assert result.errors == []
+    assert result.steps_processed == len(scenario.steps)
+    assert len(result.incidents) == 0
+
+
+def test_scenario_server_room_unauthorized_entry(tmp_path):
+    """Verify server_room_unauthorized_entry produces exactly 1 UNAUTHORIZED_ENTRY and 1 DWELL_ANOMALY."""
+    pipeline, homography_mgr, twin_engine = _create_test_pipeline(tmp_path)
+    runner = ScenarioRunner(pipeline, homography_mgr)
+
+    scenario = load_scenario("data/scenarios/server_room_unauthorized_entry.yaml")
+    result = runner.run(scenario)
+
+    assert result.errors == []
+    assert result.steps_processed == len(scenario.steps)
+    assert len(result.incidents) == 2
+
+    incidents = twin_engine.store.get_incidents()
+    types = {inc.incident_type for inc in incidents}
+    assert types == {"UNAUTHORIZED_ENTRY", "DWELL_ANOMALY"}
+    assert len(incidents) == 2
+
+
+def test_scenario_reception_over_capacity(tmp_path):
+    """Verify reception_over_capacity produces exactly 1 ZONE_OVER_CAPACITY and zero other incidents."""
+    pipeline, homography_mgr, twin_engine = _create_test_pipeline(tmp_path)
+    runner = ScenarioRunner(pipeline, homography_mgr)
+
+    scenario = load_scenario("data/scenarios/reception_over_capacity.yaml")
+    result = runner.run(scenario)
+
+    assert result.errors == []
+    assert result.steps_processed == 16
+    assert len(result.incidents) == 1
+
+    incidents = twin_engine.store.get_incidents()
+    assert len(incidents) == 1
+    assert incidents[0].incident_type == "ZONE_OVER_CAPACITY"
+    assert incidents[0].zone_id == "zone_reception"
+
+
+def test_scenario_after_hours_presence(tmp_path):
+    """Verify after_hours_presence produces exactly 1 AFTER_HOURS_BREACH and zero other incidents."""
+    pipeline, homography_mgr, twin_engine = _create_test_pipeline(tmp_path)
+    runner = ScenarioRunner(pipeline, homography_mgr)
+
+    scenario = load_scenario("data/scenarios/after_hours_presence.yaml")
+    result = runner.run(scenario)
+
+    assert result.errors == []
+    assert result.steps_processed == 3
+    assert len(result.incidents) == 1
+
+    incidents = twin_engine.store.get_incidents()
+    assert len(incidents) == 1
+    assert incidents[0].incident_type == "AFTER_HOURS_BREACH"
+    assert incidents[0].track_id == "sim_trk_night_01"
+
+
+def test_scenario_determinism(tmp_path):
+    """Verify running the same scenario twice on fresh databases yields identical event counts."""
+    dir1 = tmp_path / "run1"
+    dir1.mkdir()
+    pipeline1, homography_mgr1, _ = _create_test_pipeline(dir1)
+    runner1 = ScenarioRunner(pipeline1, homography_mgr1)
+
+    dir2 = tmp_path / "run2"
+    dir2.mkdir()
+    pipeline2, homography_mgr2, _ = _create_test_pipeline(dir2)
+    runner2 = ScenarioRunner(pipeline2, homography_mgr2)
+
+    scenario = load_scenario("data/scenarios/server_room_unauthorized_entry.yaml")
+    res1 = runner1.run(scenario)
+    res2 = runner2.run(scenario)
+
+    assert res1.events_emitted == res2.events_emitted
+    assert res1.event_type_counts == res2.event_type_counts
+    assert len(res1.incidents) == len(res2.incidents)
+    assert res1.errors == res2.errors == []

@@ -99,3 +99,28 @@ def test_twin_state_thread_safety():
     # Verify sum of zone occupancies equals total active tracks
     total_occ = sum(state.get_all_zone_occupancies().values())
     assert total_occ == len(tracks)
+
+
+def test_twin_state_timezone_mixed_pruning():
+    """Verify pruning with mixed timezone-aware and naive timestamps does not raise."""
+    state = TwinState()
+
+    # Case 1: aware last_seen, naive now_iso
+    aware_ts = "2026-09-19T12:00:00+00:00"
+    state.update_track("trk_aware", "cam_1", "zone_reception", (1.0, 1.0), aware_ts)
+
+    naive_now = "2026-09-19T12:01:00"  # 60s later, naive
+    pruned_1 = state.prune_inactive_tracks(naive_now, ttl_seconds=30.0)
+    assert len(pruned_1) == 1
+    assert pruned_1[0].track_id == "trk_aware"
+    assert state.get_track("trk_aware") is None
+
+    # Case 2: naive last_seen, aware now_iso
+    naive_ts = "2026-09-19T12:00:00"
+    state.update_track("trk_naive", "cam_1", "zone_reception", (1.0, 1.0), naive_ts)
+
+    aware_now = "2026-09-19T12:01:00+00:00"  # 60s later, aware
+    pruned_2 = state.prune_inactive_tracks(aware_now, ttl_seconds=30.0)
+    assert len(pruned_2) == 1
+    assert pruned_2[0].track_id == "trk_naive"
+    assert state.get_track("trk_naive") is None

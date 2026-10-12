@@ -1,19 +1,36 @@
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, Query, Request
-from src.twin.engine import DigitalTwinEngine
-from src.twin.schemas import (
-    EventResponse,
-    EventsListResponse,
-    IncidentResponse,
-    IncidentsListResponse,
-    TrackedEntityResponse,
-    TwinStateResponse,
-    VertexSchema,
-    ZoneResponse,
-)
+try:
+    from src.twin.engine import DigitalTwinEngine
+    from src.twin.models import Incident
+    from src.twin.schemas import (
+        EventResponse,
+        EventsListResponse,
+        IncidentPatchRequest,
+        IncidentResponse,
+        IncidentsListResponse,
+        TrackedEntityResponse,
+        TwinStateResponse,
+        VertexSchema,
+        ZoneResponse,
+    )
+except ImportError:
+    from twin.engine import DigitalTwinEngine
+    from twin.models import Incident
+    from twin.schemas import (
+        EventResponse,
+        EventsListResponse,
+        IncidentPatchRequest,
+        IncidentResponse,
+        IncidentsListResponse,
+        TrackedEntityResponse,
+        TwinStateResponse,
+        VertexSchema,
+        ZoneResponse,
+    )
 
 router = APIRouter(prefix="/api/twin", tags=["Digital Twin"])
 
@@ -28,11 +45,34 @@ def _get_engine(request: Request) -> DigitalTwinEngine:
     return engine
 
 
+def _row_to_incident_response(inc: Incident) -> IncidentResponse:
+    sup_ids = []
+    if inc.supporting_event_ids_json:
+        try:
+            sup_ids = json.loads(inc.supporting_event_ids_json)
+        except Exception:
+            pass
+
+    return IncidentResponse(
+        incident_id=inc.incident_id,
+        incident_type=inc.incident_type,
+        severity=inc.severity,
+        status=inc.status,
+        zone_id=inc.zone_id,
+        track_id=inc.track_id,
+        person_id=inc.person_id,
+        start_time=inc.start_time,
+        end_time=inc.end_time,
+        supporting_event_ids=sup_ids,
+        summary=inc.summary,
+    )
+
+
 @router.get("/state", response_model=TwinStateResponse)
 async def get_twin_state(request: Request):
     """Retrieve current in-memory Digital Twin state with active tracks and zone occupancies."""
     engine = _get_engine(request)
-    now_dt = datetime.utcnow()
+    now_dt = datetime.now(timezone.utc)
     active_tracks = engine.state.get_active_tracks()
 
     track_responses: List[TrackedEntityResponse] = []
@@ -41,7 +81,9 @@ async def get_twin_state(request: Request):
         if t.dwell_start:
             try:
                 start_dt = datetime.fromisoformat(t.dwell_start.replace("Z", "+00:00"))
-                dwell_sec = max(0.0, (now_dt.astimezone() - start_dt).total_seconds())
+                if start_dt.tzinfo is None:
+                    start_dt = start_dt.replace(tzinfo=timezone.utc)
+                dwell_sec = max(0.0, (now_dt - start_dt).total_seconds())
             except Exception:
                 dwell_sec = 0.0
 
@@ -184,32 +226,52 @@ async def get_incidents(
         limit=limit,
     )
 
-    incident_responses: List[IncidentResponse] = []
-    for inc in incidents:
-        sup_ids = []
-        if inc.supporting_event_ids_json:
-            try:
-                sup_ids = json.loads(inc.supporting_event_ids_json)
-            except Exception:
-                pass
-
-        incident_responses.append(
-            IncidentResponse(
-                incident_id=inc.incident_id,
-                incident_type=inc.incident_type,
-                severity=inc.severity,
-                status=inc.status,
-                zone_id=inc.zone_id,
-                track_id=inc.track_id,
-                person_id=inc.person_id,
-                start_time=inc.start_time,
-                end_time=inc.end_time,
-                supporting_event_ids=sup_ids,
-                summary=inc.summary,
-            )
-        )
+    incident_responses = [_row_to_incident_response(inc) for inc in incidents]
 
     return IncidentsListResponse(
         total=len(incident_responses),
         incidents=incident_responses,
     )
+
+
+@router.get("/incidents/{incident_id}", response_model=IncidentResponse)
+async def get_incident(request: Request, incident_id: str):
+    """Retrieve a single incident by ID."""
+    engine = _get_engine(request)
+    inc = engine.store.get_incident(incident_id)
+    if not inc:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Incident {incident_id} not found",
+        )
+    return _row_to_incident_response(inc)
+
+
+@router.patch("/incidents/{incident_id}", response_model=IncidentResponse)
+async def patch_incident(
+    request: Request,
+    incident_id: str,
+    body: IncidentPatchRequest,
+):
+    """Update status of an incident."""
+    engine = _get_engine(request)
+    inc = engine.store.get_incident(incident_id)
+    if not inc:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Incident {incident_id} not found",
+        )
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    inc.updated_at = now_iso
+    if body.status in ("RESOLVED", "FALSE_POSITIVE") and inc.end_time is None:
+        inc.end_time = now_iso
+    inc.status = body.status
+
+    engine.store.insert_incident(inc)
+
+    rule_engine = getattr(request.app.state, "rule_engine", None)
+    if rule_engine and body.status in ("RESOLVED", "FALSE_POSITIVE"):
+        rule_engine.forget(incident_id)
+
+    return _row_to_incident_response(inc)
