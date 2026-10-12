@@ -49,6 +49,7 @@ class Settings(BaseSettings):
     # Rules & Simulator Configuration
     rules_policy_path: str = "data/rules/access_policy.yaml"
     simulator_scenarios_dir: str = "data/scenarios"
+    access_config_path: str = "data/access/doors.yaml"
 
 
     @field_validator("cors_origins", mode="before")

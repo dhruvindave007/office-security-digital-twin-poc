@@ -1,0 +1,16 @@
+version: 1
+doors:
+  - door_id: door_server_01
+    name: "Server Room Badge Door"
+    zone_id: zone_server_room        # zone you are in after passing the door
+    camera_id: cam_server_01         # camera that sees people entering
+    badge_required: true
+  - door_id: door_main_entrance
+    name: "Main Entrance"
+    zone_id: zone_reception
+    camera_id: cam_reception_01
+    badge_required: false
+badges:                              # synthetic POC identities only
+  badge_0001: person_it_admin_01
+  badge_0002: person_it_admin_02
+  badge_0100: person_staff_01

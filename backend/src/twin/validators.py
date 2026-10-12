@@ -86,6 +86,8 @@ class EventValidator:
         "UNAUTHORIZED_ACCESS",
         "TAILGATING_SUSPECTED",
         "TRACK_LOST",
+        "ACCESS_GRANTED",
+        "ACCESS_DENIED",
     }
 
     @classmethod
