@@ -7,6 +7,7 @@ from src.simulator.runner import ScenarioRunner
 from src.simulator.scenarios import Scenario, ScenarioStep, list_scenarios, load_scenario
 from src.twin.bootstrap import TwinBootstrapService
 from src.twin.engine import DigitalTwinEngine
+from src.twin.state import TwinState
 from src.vision.pipeline import ObservationPipeline
 from src.vision.seed import VisionSeedLoader
 from src.vision.zones import VisionZoneResolver
@@ -49,9 +50,13 @@ def test_scenario_loader_validation():
     with pytest.raises(ValueError, match="track_id cannot be empty"):
         ScenarioStep(t=0.0, camera_id="cam_01", track_id="", floor=[5.0, 5.0])
 
-    # Bad floor
+    # Bad floor (too few numbers)
     with pytest.raises(ValueError, match="floor coordinates must be a list of 2 numbers"):
         ScenarioStep(t=0.0, camera_id="cam_01", track_id="trk_01", floor=[5.0])
+
+    # Bad floor (too many numbers)
+    with pytest.raises(ValueError, match="floor coordinates must be a list of 2 numbers"):
+        ScenarioStep(t=0.0, camera_id="cam_01", track_id="trk_01", floor=[5.0, 5.0, 5.0])
 
     # Unsorted steps in Scenario
     s1 = ScenarioStep(t=10.0, camera_id="cam_01", track_id="trk_01", floor=[5.0, 5.0])
@@ -157,3 +162,39 @@ def test_scenario_determinism(tmp_path):
     assert res1.event_type_counts == res2.event_type_counts
     assert len(res1.incidents) == len(res2.incidents)
     assert res1.errors == res2.errors == []
+
+    # Assert identical incident types
+    types1 = [inc.incident_type for inc in pipeline1.twin_engine.store.get_incidents()]
+    types2 = [inc.incident_type for inc in pipeline2.twin_engine.store.get_incidents()]
+    assert types1 == types2
+
+
+def test_scenario_replay_safety(tmp_path):
+    """Verify replay safety: replaying ledger events on a re-instantiated engine leaves incidents unchanged."""
+    pipeline, homography_mgr, twin_engine = _create_test_pipeline(tmp_path)
+    runner = ScenarioRunner(pipeline, homography_mgr)
+
+    scenario = load_scenario("data/scenarios/server_room_unauthorized_entry.yaml")
+    result = runner.run(scenario)
+    assert len(result.incidents) == 2
+
+    initial_incidents = twin_engine.store.get_incidents()
+    initial_count = len(initial_incidents)
+    assert initial_count == 2
+
+    # Build fresh TwinState and DigitalTwinEngine on the exact same database store
+    fresh_state = TwinState()
+    replay_engine = DigitalTwinEngine(
+        store=twin_engine.store,
+        state=fresh_state,
+        geometry=twin_engine.geometry,
+    )
+    all_events, _ = twin_engine.store.get_events(limit=500)
+    all_events_asc = sorted(all_events, key=lambda e: e.sequence_num)
+
+    # Replay all events
+    replay_engine.replay_events(all_events_asc)
+
+    # Store incidents must remain unchanged
+    replayed_incidents = replay_engine.store.get_incidents()
+    assert len(replayed_incidents) == initial_count

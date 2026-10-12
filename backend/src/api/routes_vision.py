@@ -43,7 +43,7 @@ async def ingest_observation(payload: ObservationIngestRequest, request: Request
         )
 
     # Validate camera registration
-    if payload.camera_id not in pipeline.homography_manager.registered_cameras:
+    if not pipeline.homography_manager.has_camera(payload.camera_id):
         raise HTTPException(
             status_code=404,
             detail=f"Camera '{payload.camera_id}' not found or not calibrated.",

@@ -5,12 +5,12 @@ from pydantic import BaseModel, Field
 
 try:
     from src.config import get_settings
+    from src.core.paths import _resolve_data_path
     from src.simulator.scenarios import list_scenarios, load_scenario
-    from src.vision.seed import _resolve_data_path
 except ImportError:
     from config import get_settings
+    from core.paths import _resolve_data_path
     from simulator.scenarios import list_scenarios, load_scenario
-    from vision.seed import _resolve_data_path
 
 logger = logging.getLogger("office_vision.api.simulator")
 

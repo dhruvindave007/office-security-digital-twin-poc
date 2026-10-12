@@ -41,6 +41,14 @@ except ImportError:
 logger = logging.getLogger("office_vision.main")
 
 
+def _prune_once(twin_engine, rule_engine, now_iso: str):
+    """Execute a single prune cycle and evaluate lost track events against rules."""
+    lost_events = twin_engine.prune_tracks(now_iso)
+    if lost_events and rule_engine:
+        return rule_engine.evaluate(lost_events)
+    return []
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan handler executing non-billable Bedrock readiness validation, Digital Twin bootstrap, and vision/rules pipeline."""
@@ -109,18 +117,15 @@ async def lifespan(app: FastAPI):
 
     # 4. Background prune loop
     async def prune_loop():
-        try:
-            while True:
+        while True:
+            try:
                 await asyncio.sleep(settings.twin_prune_interval_seconds)
                 now_iso = datetime.now(timezone.utc).isoformat()
-                lost_events = twin_engine.prune_tracks(now_iso)
-                if lost_events and getattr(app.state, "rule_engine", None):
-                    for ev in lost_events:
-                        app.state.rule_engine.evaluate(ev)
-        except asyncio.CancelledError:
-            pass
-        except Exception as e:
-            logger.error(f"Error in twin prune loop: {e}", exc_info=True)
+                _prune_once(twin_engine, getattr(app.state, "rule_engine", None), now_iso)
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Error in twin prune loop: {e}", exc_info=True)
 
     prune_task = asyncio.create_task(prune_loop())
 

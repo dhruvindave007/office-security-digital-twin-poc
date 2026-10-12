@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 import logging
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 try:
     from src.twin.engine import DigitalTwinEngine
@@ -8,14 +8,18 @@ try:
     from src.vision.geometry import CameraObservation, FloorPoint, PixelPoint, TwinObservation
     from src.vision.topology import TopologyService
     from src.vision.zones import VisionZoneResolver
-    from src.rules.engine import IncidentRuleEngine
 except ImportError:
     from twin.engine import DigitalTwinEngine
     from vision.calibration import HomographyManager
     from vision.geometry import CameraObservation, FloorPoint, PixelPoint, TwinObservation
     from vision.topology import TopologyService
     from vision.zones import VisionZoneResolver
-    from rules.engine import IncidentRuleEngine
+
+if TYPE_CHECKING:
+    try:
+        from src.rules.engine import IncidentRuleEngine
+    except ImportError:
+        from rules.engine import IncidentRuleEngine
 
 logger = logging.getLogger("office_vision.vision.pipeline")
 
@@ -39,7 +43,7 @@ class ObservationPipeline:
         zone_resolver: VisionZoneResolver,
         twin_engine: DigitalTwinEngine,
         topology_service: Optional[TopologyService] = None,
-        rule_engine: Optional[IncidentRuleEngine] = None,
+        rule_engine: Optional["IncidentRuleEngine"] = None,
     ):
         self.homography_manager = homography_manager
         self.zone_resolver = zone_resolver
