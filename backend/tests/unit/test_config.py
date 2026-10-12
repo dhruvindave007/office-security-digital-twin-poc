@@ -22,4 +22,5 @@ def test_settings_defaults():
     assert settings.bedrock_connect_timeout == 10.0
     assert settings.bedrock_read_timeout == 60.0
     assert settings.bedrock_max_retries == 3
+    assert settings.access_config_path == "data/access/doors.yaml"
 
