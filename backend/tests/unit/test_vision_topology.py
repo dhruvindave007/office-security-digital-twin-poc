@@ -85,3 +85,24 @@ def test_topology_reachable_cameras(sample_topology):
     # In 20 seconds: can reach all 3 cameras
     reachable_all = sample_topology.get_reachable_cameras("cam_1", elapsed_seconds=20.0)
     assert reachable_all == ["cam_1", "cam_2", "cam_3"]
+
+
+def test_topology_min_transit_seconds(sample_topology):
+    """Verify min_transit_seconds calculation for same camera, direct, multi-hop, and unreachable."""
+    # Same camera returns 0.0
+    assert sample_topology.min_transit_seconds("cam_1", "cam_1") == 0.0
+    assert sample_topology.min_transit_seconds("cam_2", "cam_2") == 0.0
+
+    # Direct link: cam_1 -> cam_2 min is 5.0s
+    assert sample_topology.min_transit_seconds("cam_1", "cam_2") == 5.0
+    assert sample_topology.min_transit_seconds("cam_2", "cam_1") == 5.0
+
+    # Multi-hop: cam_1 -> cam_3 min is 5.0 + 3.0 = 8.0s
+    assert sample_topology.min_transit_seconds("cam_1", "cam_3") == 8.0
+    assert sample_topology.min_transit_seconds("cam_3", "cam_1") == 8.0
+
+    # Unknown camera returns None
+    assert sample_topology.min_transit_seconds("cam_1", "cam_nonexistent") is None
+    assert sample_topology.min_transit_seconds("cam_nonexistent", "cam_1") is None
+    assert sample_topology.min_transit_seconds("cam_nonexistent", "cam_nonexistent") is None
+

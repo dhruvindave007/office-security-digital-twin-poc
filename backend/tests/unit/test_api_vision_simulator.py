@@ -72,7 +72,7 @@ def test_simulator_api_routes(tmp_path, monkeypatch):
             assert run_data["scenario_name"] == "server_room_unauthorized_entry"
             assert run_data["steps_processed"] == 14
             assert run_data["events_emitted"] == 20
-            assert len(run_data["incidents"]) == 2
+            assert len(run_data["incidents"]) == 3
             assert run_data["errors"] == []
 
             # 3. POST /api/simulator/scenarios/{name}/run (unknown scenario -> 404)
