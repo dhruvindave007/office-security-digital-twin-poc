@@ -1,0 +1,8 @@
+name: ljubljana_reception
+description: "Normal operations: public pedestrian footage played as the reception camera (occupancy, paths, heatmap; no incidents expected, max ~8 people < capacity 15)."
+video_file: ljubljana_pedestrian.webm
+camera_id: cam_reception_01
+base_time_utc: "2026-01-20T09:30:00Z"
+process_fps: 5.0
+max_frames: null
+source_note: 'Wikimedia Commons "Pedestrian area Ljubljana.webm" by Sounds of Change, CC BY 3.0 (attribution required). https://commons.wikimedia.org/wiki/File:Pedestrian_area_Ljubljana.webm'

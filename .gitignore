@@ -66,3 +66,6 @@ Thumbs.db
 **/data/*.db
 **/data/*.db-wal
 **/data/*.db-shm
+
+# Evaluation datasets (MOT16/17 are CC BY-NC-SA, never commit)
+data/datasets/
