@@ -105,6 +105,17 @@ class VideoClipRunner:
 
         wall_start = time.perf_counter()
 
+        # Fail fast: an unknown camera would otherwise fail every observation silently
+        # and the run would still report "completed".
+        cam_node = self.camera_nodes.get(config.camera_id)
+        if cam_node is None:
+            raise ValueError(
+                f"Clip '{config.name}' references unknown camera_id '{config.camera_id}'. "
+                f"Known cameras: {sorted(self.camera_nodes)}"
+            )
+        # Clip runs only ever prune tracks they created (never live/other tracks).
+        own_track_prefix = f"{config.name}:{run_id}:"
+
         video_path = Path(self.clips_dir) / config.video_file
         if not video_path.exists():
             raise FileNotFoundError(f"Video file not found at: {video_path}")
@@ -131,7 +142,6 @@ class VideoClipRunner:
             stride = max(1, round(src_fps / process_fps))
 
             base_dt = parse_utc_timestamp(config.base_time_utc)
-            cam_node = self.camera_nodes.get(config.camera_id)
 
             tracker.reset()
 
@@ -196,8 +206,8 @@ class VideoClipRunner:
                 # Ingestion
                 t_ingest_0 = time.perf_counter()
                 frame_h, frame_w = frame.shape[:2]
-                res_w = float(cam_node.resolution_width) if cam_node else float(frame_w)
-                res_h = float(cam_node.resolution_height) if cam_node else float(frame_h)
+                res_w = float(cam_node.resolution_width)
+                res_h = float(cam_node.resolution_height)
                 scale_x = res_w / frame_w if frame_w > 0 else 1.0
                 scale_y = res_h / frame_h if frame_h > 0 else 1.0
 
@@ -260,6 +270,7 @@ class VideoClipRunner:
                         lost = twin_engine.prune_tracks(
                             now_iso=frame_iso,
                             ttl_seconds=config.track_exit_seconds,
+                            track_id_prefix=own_track_prefix,
                         )
                         if lost:
                             events_emitted += len(lost)
@@ -288,6 +299,7 @@ class VideoClipRunner:
                     final_lost = twin_engine.prune_tracks(
                         now_iso=final_iso,
                         ttl_seconds=config.track_exit_seconds,
+                        track_id_prefix=own_track_prefix,
                     )
                     if final_lost:
                         events_emitted += len(final_lost)

@@ -123,8 +123,14 @@ class TwinState:
         with self._lock:
             return {zone_id: len(tracks) for zone_id, tracks in self._zone_occupancy.items()}
 
-    def prune_inactive_tracks(self, now_iso: str, ttl_seconds: float) -> List[TrackedEntity]:
-        """Evict entities not seen within ttl_seconds and return pruned records."""
+    def prune_inactive_tracks(
+        self, now_iso: str, ttl_seconds: float, track_id_prefix: Optional[str] = None
+    ) -> List[TrackedEntity]:
+        """Evict entities not seen within ttl_seconds and return pruned records.
+
+        If track_id_prefix is given, only tracks whose ID starts with it are considered
+        (used by clip runs, which must never evict tracks they do not own).
+        """
         now_dt = datetime.fromisoformat(now_iso.replace("Z", "+00:00"))
         if now_dt.tzinfo is None:
             now_dt = now_dt.replace(tzinfo=timezone.utc)
@@ -133,6 +139,8 @@ class TwinState:
         with self._lock:
             inactive_ids = []
             for track_id, entity in self._active_tracks.items():
+                if track_id_prefix is not None and not track_id.startswith(track_id_prefix):
+                    continue
                 last_seen_dt = datetime.fromisoformat(entity.last_seen.replace("Z", "+00:00"))
                 if last_seen_dt.tzinfo is None:
                     last_seen_dt = last_seen_dt.replace(tzinfo=timezone.utc)

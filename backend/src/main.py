@@ -9,8 +9,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 try:
-    from src.access.config import load_access_config
-    from src.access.service import AccessControlService
     from src.ai.bedrock_client import BedrockClient
     from src.ai.model_registry import DynamicValidator
     from src.api.routes_access import router as access_router
@@ -20,17 +18,8 @@ try:
     from src.api.routes_vision import router as vision_router
     from src.config import get_settings
     from src.core.locks import TWIN_WRITE_LOCK
-    from src.rules.correlation import CorrelationEngine
-    from src.rules.engine import IncidentRuleEngine
-    from src.rules.policy import load_access_policy
-    from src.simulator.runner import ScenarioRunner
-    from src.twin.bootstrap import TwinBootstrapService
-    from src.vision.pipeline import ObservationPipeline
-    from src.vision.seed import VisionSeedLoader
-    from src.vision.zones import VisionZoneResolver
+    from src.runtime import build_runtime
 except ImportError:
-    from access.config import load_access_config
-    from access.service import AccessControlService
     from ai.bedrock_client import BedrockClient
     from ai.model_registry import DynamicValidator
     from api.routes_access import router as access_router
@@ -40,14 +29,7 @@ except ImportError:
     from api.routes_vision import router as vision_router
     from config import get_settings
     from core.locks import TWIN_WRITE_LOCK
-    from rules.correlation import CorrelationEngine
-    from rules.engine import IncidentRuleEngine
-    from rules.policy import load_access_policy
-    from simulator.runner import ScenarioRunner
-    from twin.bootstrap import TwinBootstrapService
-    from vision.pipeline import ObservationPipeline
-    from vision.seed import VisionSeedLoader
-    from vision.zones import VisionZoneResolver
+    from runtime import build_runtime
 
 logger = logging.getLogger("office_vision.main")
 
@@ -95,134 +77,18 @@ async def lifespan(app: FastAPI):
         "boto3_version": boto3.__version__,
     }
 
-    # 2. Digital Twin Core bootstrap (migrations, floorplan seed, snapshot restore, replay)
-    twin_engine = TwinBootstrapService.bootstrap(
-        db_path=settings.database_url,
-        seed_path=settings.twin_floorplan_seed_path,
-        track_ttl_seconds=settings.twin_track_ttl_seconds,
-        snapshot_interval=settings.twin_snapshot_interval_events,
-    )
+    # 2-3. Digital Twin, rules, correlation, access control, vision pipeline and clip jobs
+    runtime = build_runtime(settings)
+    twin_engine = runtime.twin_engine
     app.state.twin_engine = twin_engine
-
-    # 3. Vision Geometry, Deterministic Rules, and Simulator bootstrap
-    app.state.homography_manager = None
-    app.state.rule_engine = None
-    app.state.observation_pipeline = None
-    app.state.scenario_runner = None
-    app.state.access_service = None
-
-    policy = load_access_policy(settings.rules_policy_path)
-    access_config = None
-    try:
-        access_config = load_access_config(settings.access_config_path)
-    except Exception as e:
-        logger.warning(f"Failed to load access config from '{settings.access_config_path}': {e}")
-
-    try:
-        homography_mgr, camera_graph, topology = VisionSeedLoader.load_all(
-            settings.vision_calibration_dir,
-            settings.vision_topology_dir,
-        )
-        zone_resolver = VisionZoneResolver.from_twin_store(twin_engine.store)
-
-        correlation_engine = None
-        if access_config and topology:
-            correlation_engine = CorrelationEngine(
-                policy=policy,
-                access_config=access_config,
-                topology=topology,
-                store=twin_engine.store,
-            )
-
-        rule_engine = IncidentRuleEngine(
-            twin_engine.store,
-            twin_engine.state,
-            policy,
-            correlation=correlation_engine,
-        )
-        obs_pipeline = ObservationPipeline(
-            homography_manager=homography_mgr,
-            zone_resolver=zone_resolver,
-            twin_engine=twin_engine,
-            topology_service=topology,
-            rule_engine=rule_engine,
-        )
-        access_service = None
-        if access_config:
-            access_service = AccessControlService(
-                store=twin_engine.store,
-                config=access_config,
-                rule_engine=rule_engine,
-            )
-
-        scenario_runner = ScenarioRunner(
-            obs_pipeline,
-            homography_mgr,
-            access_service=access_service,
-        )
-
-        try:
-            from src.core.paths import _resolve_data_path
-            from src.vision.clip_jobs import ClipJobManager
-            from src.vision.clip_runner import VideoClipRunner
-        except ImportError:
-            from core.paths import _resolve_data_path
-            from vision.clip_jobs import ClipJobManager
-            from vision.clip_runner import VideoClipRunner
-
-        camera_nodes_list = VisionSeedLoader.load_cameras(calibration_dir=settings.vision_calibration_dir)
-        camera_nodes = {c.camera_id: c for c in camera_nodes_list}
-        clips_dir = str(_resolve_data_path(settings.vision_clips_dir, "data/clips"))
-
-        clip_runner = VideoClipRunner(
-            pipeline=obs_pipeline,
-            camera_nodes=camera_nodes,
-            clips_dir=clips_dir,
-        )
-        clip_job_manager = ClipJobManager(runner=clip_runner)
-
-        def _default_tracker_factory():
-            try:
-                from src.vision.tracking.ultralytics_tracker import UltralyticsPersonTracker
-            except ImportError:
-                from vision.tracking.ultralytics_tracker import UltralyticsPersonTracker
-            return UltralyticsPersonTracker(
-                model=settings.vision_model,
-                device=settings.vision_device,
-                tracker_cfg=settings.vision_tracker,
-                min_confidence=settings.vision_min_confidence,
-                models_dir=settings.vision_models_dir,
-            )
-
-        app.state.homography_manager = homography_mgr
-        app.state.rule_engine = rule_engine
-        app.state.observation_pipeline = obs_pipeline
-        app.state.scenario_runner = scenario_runner
-        app.state.access_service = access_service
-        app.state.clip_runner = clip_runner
-        app.state.clip_job_manager = clip_job_manager
-        app.state.tracker_factory = _default_tracker_factory
-    except Exception as e:
-        logger.warning(
-            f"Failed to initialize vision or topology; initializing rule engine without correlation: {e}",
-            exc_info=True,
-        )
-        rule_engine = IncidentRuleEngine(
-            twin_engine.store,
-            twin_engine.state,
-            policy,
-            correlation=None,
-        )
-        app.state.rule_engine = rule_engine
-        if access_config:
-            try:
-                app.state.access_service = AccessControlService(
-                    store=twin_engine.store,
-                    config=access_config,
-                    rule_engine=rule_engine,
-                )
-            except Exception as e2:
-                logger.warning(f"Failed to initialize access control service: {e2}")
+    app.state.rule_engine = runtime.rule_engine
+    app.state.access_service = runtime.access_service
+    app.state.homography_manager = runtime.homography_manager
+    app.state.observation_pipeline = runtime.observation_pipeline
+    app.state.scenario_runner = runtime.scenario_runner
+    app.state.clip_runner = runtime.clip_runner
+    app.state.clip_job_manager = runtime.clip_job_manager
+    app.state.tracker_factory = runtime.tracker_factory
 
     # 4. Background prune loop
     async def prune_loop():

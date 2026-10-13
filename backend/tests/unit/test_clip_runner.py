@@ -553,3 +553,55 @@ def test_runner_zone_over_capacity_auto_resolves(tmp_path: Path):
     assert inc.status == "RESOLVED"
     assert inc.end_time is not None
 
+
+
+def test_runner_unknown_camera_raises_instead_of_silent_completion(tmp_path: Path):
+    """Regression: an unknown camera used to fail every observation silently and report "completed"."""
+    video_path, _ = generate_synthetic_video(tmp_path, stem="badcam_clip", duration_sec=0.4, fps=10.0)
+    runner, _, _ = _setup_runner_and_twin(tmp_path)
+    config = ClipConfig(
+        name="badcam_clip",
+        video_file=video_path.name,
+        camera_id="cam_does_not_exist",
+        base_time_utc="2026-01-20T09:30:00Z",
+        source_note="test",
+    )
+    with pytest.raises(ValueError, match="cam_does_not_exist"):
+        runner.run(config=config, tracker=ScriptedTracker({}), run_id="run_badcam")
+
+
+def test_runner_prunes_only_its_own_tracks(tmp_path: Path):
+    """Regression: clip-run pruning used the short clip exit TTL on EVERY twin track.
+
+    A non-clip track seen 1 s into the clip window must survive the run (engine TTL is 30 s).
+    """
+    video_path, _ = generate_synthetic_video(tmp_path, stem="scope_clip", duration_sec=3.0, fps=10.0)
+    runner, pipeline, twin_engine = _setup_runner_and_twin(tmp_path)
+
+    from src.vision.geometry import CameraObservation
+
+    pipeline.process_observation(
+        CameraObservation(
+            camera_id="cam_workspace_01",
+            track_id="visitor_live",
+            bbox=BoundingBox2D(800.0, 400.0, 900.0, 700.0),
+            timestamp="2026-01-20T09:30:01Z",
+        )
+    )
+    config = ClipConfig(
+        name="scope_clip",
+        video_file=video_path.name,
+        camera_id="cam_reception_01",
+        base_time_utc="2026-01-20T09:30:00Z",
+        process_fps=5.0,
+        source_note="test",
+    )
+    det = TrackedDetection(local_track_id=1, bbox=BoundingBox2D(800.0, 400.0, 900.0, 700.0), confidence=0.9)
+    res = runner.run(config=config, tracker=ScriptedTracker({0: [det], 1: [det]}), run_id="run_scope")
+
+    assert res.status == "completed"
+    assert twin_engine.state.get_track("visitor_live") is not None
+    lost, _ = twin_engine.store.get_events(limit=50, track_id="visitor_live", event_type="TRACK_LOST")
+    assert lost == []
+    # ...while the clip's own track was still cleaned up
+    assert all(not t.track_id.startswith("scope_clip:run_scope:") for t in twin_engine.state.get_active_tracks())
