@@ -46,6 +46,16 @@ class Settings(BaseSettings):
     vision_calibration_dir: str = "data/calibration"
     vision_topology_dir: str = "data/topology"
 
+    # Vision Pipeline & Tracking Configuration
+    vision_model: str = "yolo11n.pt"
+    vision_models_dir: str = "data/models"
+    vision_device: str = "cpu"
+    vision_tracker: str = "bytetrack.yaml"
+    vision_clips_dir: str = "data/clips"
+    vision_min_confidence: float = 0.35
+    vision_process_fps: float = 5.0
+    vision_benchmarks_dir: str = "data/benchmarks"
+
     # Rules & Simulator Configuration
     rules_policy_path: str = "data/rules/access_policy.yaml"
     simulator_scenarios_dir: str = "data/scenarios"
