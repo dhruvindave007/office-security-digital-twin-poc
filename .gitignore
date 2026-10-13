@@ -46,7 +46,7 @@ dist/
 data/*.db
 data/*.sqlite
 data/*.sqlite3
-data/models/
+**/data/models/
 data/clips/out/
 data/clips/*.mp4
 data/clips/*.mkv
@@ -69,3 +69,5 @@ Thumbs.db
 
 # Evaluation datasets (MOT16/17 are CC BY-NC-SA, never commit)
 data/datasets/
+**/data/benchmarks/*.tmp
+**/data/clips/out/
