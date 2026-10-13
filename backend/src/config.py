@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     aws_region: str = "us-east-1"
     bedrock_reasoning_model_id: str = "us.amazon.nova-lite-v1:0"
     bedrock_fast_model_id: str = "us.amazon.nova-micro-v1:0"
-    bedrock_multimodal_model_id: str = "us.amazon.nova-pro-v1:0"
+    bedrock_multimodal_model_id: str = "us.amazon.nova-lite-v1:0"  # cheapest video-capable model; Pro is ~13x the price
     bedrock_connect_timeout: float = 10.0
     bedrock_read_timeout: float = 60.0
     bedrock_max_retries: int = 3
