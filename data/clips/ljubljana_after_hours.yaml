@@ -1,0 +1,8 @@
+name: ljubljana_after_hours
+description: "After-hours demo: footage played as the workspace camera at 21:00 UTC (expect AFTER_HOURS_BREACH per track)."
+video_file: ljubljana_pedestrian.webm
+camera_id: cam_workspace_01
+base_time_utc: "2026-01-20T21:00:00Z"
+process_fps: 5.0
+max_frames: null
+source_note: 'Wikimedia Commons "Pedestrian area Ljubljana.webm" by Sounds of Change, CC BY 3.0 (attribution required). https://commons.wikimedia.org/wiki/File:Pedestrian_area_Ljubljana.webm'
