@@ -2,6 +2,7 @@ import asyncio
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 import logging
+from typing import Any, Optional
 
 import boto3
 from fastapi import FastAPI
@@ -49,6 +50,13 @@ except ImportError:
     from vision.zones import VisionZoneResolver
 
 logger = logging.getLogger("office_vision.main")
+
+
+def should_prune(clip_job_manager: Any) -> bool:
+    """Return True if prune loop should proceed, False if a clip run is active."""
+    if clip_job_manager is not None and getattr(clip_job_manager, "active_run_id", None) is not None:
+        return False
+    return True
 
 
 def _prune_once(twin_engine, rule_engine, now_iso: str):
@@ -153,11 +161,47 @@ async def lifespan(app: FastAPI):
             access_service=access_service,
         )
 
+        try:
+            from src.core.paths import _resolve_data_path
+            from src.vision.clip_jobs import ClipJobManager
+            from src.vision.clip_runner import VideoClipRunner
+        except ImportError:
+            from core.paths import _resolve_data_path
+            from vision.clip_jobs import ClipJobManager
+            from vision.clip_runner import VideoClipRunner
+
+        camera_nodes_list = VisionSeedLoader.load_cameras(calibration_dir=settings.vision_calibration_dir)
+        camera_nodes = {c.camera_id: c for c in camera_nodes_list}
+        clips_dir = str(_resolve_data_path(settings.vision_clips_dir, "data/clips"))
+
+        clip_runner = VideoClipRunner(
+            pipeline=obs_pipeline,
+            camera_nodes=camera_nodes,
+            clips_dir=clips_dir,
+        )
+        clip_job_manager = ClipJobManager(runner=clip_runner)
+
+        def _default_tracker_factory():
+            try:
+                from src.vision.tracking.ultralytics_tracker import UltralyticsPersonTracker
+            except ImportError:
+                from vision.tracking.ultralytics_tracker import UltralyticsPersonTracker
+            return UltralyticsPersonTracker(
+                model=settings.vision_model,
+                device=settings.vision_device,
+                tracker_cfg=settings.vision_tracker,
+                min_confidence=settings.vision_min_confidence,
+                models_dir=settings.vision_models_dir,
+            )
+
         app.state.homography_manager = homography_mgr
         app.state.rule_engine = rule_engine
         app.state.observation_pipeline = obs_pipeline
         app.state.scenario_runner = scenario_runner
         app.state.access_service = access_service
+        app.state.clip_runner = clip_runner
+        app.state.clip_job_manager = clip_job_manager
+        app.state.tracker_factory = _default_tracker_factory
     except Exception as e:
         logger.warning(
             f"Failed to initialize vision or topology; initializing rule engine without correlation: {e}",
@@ -185,6 +229,9 @@ async def lifespan(app: FastAPI):
         while True:
             try:
                 await asyncio.sleep(settings.twin_prune_interval_seconds)
+                clip_manager = getattr(app.state, "clip_job_manager", None)
+                if not should_prune(clip_manager):
+                    continue
                 now_iso = datetime.now(timezone.utc).isoformat()
                 _prune_once(twin_engine, getattr(app.state, "rule_engine", None), now_iso)
             except asyncio.CancelledError:

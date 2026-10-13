@@ -48,3 +48,8 @@ def test_import_src_api_routes_access():
     _run_import("import src.api.routes_access")
 
 
+def test_import_src_main_no_vision_heavy_libs():
+    _run_import("import src.main, sys; assert not ({'cv2', 'torch', 'ultralytics'} & set(sys.modules))")
+
+
+
