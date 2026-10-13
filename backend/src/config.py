@@ -32,6 +32,15 @@ class Settings(BaseSettings):
     bedrock_reasoning_model_id: str = "us.amazon.nova-lite-v1:0"
     bedrock_fast_model_id: str = "us.amazon.nova-micro-v1:0"
     bedrock_multimodal_model_id: str = "us.amazon.nova-lite-v1:0"  # cheapest video-capable model; Pro is ~13x the price
+    # Incident investigation (M5). Haiku 5.5 chosen by measured eval: same grounding/honesty
+    # scores as Sonnet 5.5 at ~1/14 of the cost. Budget cap guards spend on the POC account.
+    bedrock_investigation_model_id: str = "global.anthropic.claude-haiku-5-5"
+    # Claude Haiku 5.5 thinks by default (hidden tokens count as output). Measured 2026-10-13:
+    # effort "low" passed every grounding/honesty check at ~20% less cost and latency than the
+    # default "medium"; thinking disabled was cheapest but failed the identity-judgment check.
+    investigation_effort: str = "low"
+    investigation_max_output_tokens: int = 6000
+    investigation_daily_budget_usd: float = 1.0
     bedrock_connect_timeout: float = 10.0
     bedrock_read_timeout: float = 60.0
     bedrock_max_retries: int = 3

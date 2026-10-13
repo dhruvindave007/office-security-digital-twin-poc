@@ -25,6 +25,14 @@ from src.ai.types import BedrockConverseResponse, BedrockStreamChunk
 from src.core.logging import log_bedrock_request
 
 
+def _inference_config(max_tokens: int, temperature: Optional[float]) -> Dict[str, Any]:
+    """Converse inferenceConfig. temperature=None omits it (Claude 5.x models reject the parameter)."""
+    config: Dict[str, Any] = {"maxTokens": max_tokens}
+    if temperature is not None:
+        config["temperature"] = temperature
+    return config
+
+
 class BedrockClient:
     """Amazon Bedrock Runtime client with structured logging and adaptive retries.
 
@@ -83,17 +91,20 @@ class BedrockClient:
         system_prompt: Optional[str] = None,
         model_id: Optional[str] = None,
         max_tokens: int = 512,
-        temperature: float = 0.7,
+        temperature: Optional[float] = 0.7,
+        additional_fields: Optional[Dict[str, Any]] = None,
     ) -> BedrockConverseResponse:
         """Execute a synchronous Converse call with telemetry logging and error mapping."""
         active_model = self.validator.validate_id_format(model_id or self.default_model_id)
         kwargs: Dict[str, Any] = {
             "modelId": active_model,
             "messages": messages,
-            "inferenceConfig": {"maxTokens": max_tokens, "temperature": temperature},
+            "inferenceConfig": _inference_config(max_tokens, temperature),
         }
         if system_prompt and system_prompt.strip():
             kwargs["system"] = [{"text": system_prompt.strip()}]
+        if additional_fields:
+            kwargs["additionalModelRequestFields"] = additional_fields
 
         start_time = time.perf_counter()
         try:
@@ -129,17 +140,20 @@ class BedrockClient:
         system_prompt: Optional[str] = None,
         model_id: Optional[str] = None,
         max_tokens: int = 512,
-        temperature: float = 0.7,
+        temperature: Optional[float] = 0.7,
+        additional_fields: Optional[Dict[str, Any]] = None,
     ) -> Generator[BedrockStreamChunk, None, BedrockConverseResponse]:
         """Execute a streaming ConverseStream call, yielding BedrockStreamChunk instances."""
         active_model = self.validator.validate_id_format(model_id or self.default_model_id)
         kwargs: Dict[str, Any] = {
             "modelId": active_model,
             "messages": messages,
-            "inferenceConfig": {"maxTokens": max_tokens, "temperature": temperature},
+            "inferenceConfig": _inference_config(max_tokens, temperature),
         }
         if system_prompt and system_prompt.strip():
             kwargs["system"] = [{"text": system_prompt.strip()}]
+        if additional_fields:
+            kwargs["additionalModelRequestFields"] = additional_fields
 
         start_time = time.perf_counter()
         try:

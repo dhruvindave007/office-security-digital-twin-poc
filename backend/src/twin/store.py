@@ -512,6 +512,8 @@ class TwinStore:
         event_types: Optional[List[str]] = None,
         start_time: Optional[str] = None,
         end_time: Optional[str] = None,
+        zone_id: Optional[str] = None,
+        track_ids: Optional[List[str]] = None,
     ) -> List[TwinEvent]:
         """ALL matching events in ledger order (sequence_num ASC), no limit.
 
@@ -523,6 +525,12 @@ class TwinStore:
         if track_id:
             clauses.append("track_id = ?")
             params.append(track_id)
+        if track_ids:
+            clauses.append(f"track_id IN ({', '.join('?' for _ in track_ids)})")
+            params.extend(track_ids)
+        if zone_id:
+            clauses.append("zone_id = ?")
+            params.append(zone_id)
         if event_types:
             clauses.append(f"event_type IN ({', '.join('?' for _ in event_types)})")
             params.extend(event_types)
@@ -536,6 +544,45 @@ class TwinStore:
         with self.get_connection() as conn:
             cur = conn.execute(f"SELECT * FROM events {where_sql} ORDER BY sequence_num ASC;", params)
             return [self._row_to_event(row) for row in cur.fetchall()]
+
+    # -------------------------------------------------------------------------
+    # AI investigations (append-only audit of every Bedrock investigation)
+    # -------------------------------------------------------------------------
+    _INVESTIGATION_COLUMNS = (
+        "investigation_id", "incident_id", "created_at", "status", "model_id", "question",
+        "result_json", "raw_output", "verification_json", "evidence_event_count",
+        "input_tokens", "output_tokens", "cost_usd", "latency_ms", "error",
+    )
+
+    def insert_investigation(self, record: Dict[str, Any]) -> None:
+        """Persist one investigation record (keys = _INVESTIGATION_COLUMNS)."""
+        row = dict(record)
+        row["created_at"] = canonical_utc(row["created_at"])
+        cols = self._INVESTIGATION_COLUMNS
+        with self._lock, self.get_connection() as conn:
+            conn.execute(
+                f"INSERT INTO investigations ({', '.join(cols)}) VALUES ({', '.join('?' for _ in cols)});",
+                [row.get(c) for c in cols],
+            )
+            conn.commit()
+
+    def get_investigations(self, incident_id: str) -> List[Dict[str, Any]]:
+        """All investigations for an incident, newest first."""
+        with self.get_connection() as conn:
+            cur = conn.execute(
+                "SELECT * FROM investigations WHERE incident_id = ? ORDER BY created_at DESC;",
+                (incident_id,),
+            )
+            return [dict(row) for row in cur.fetchall()]
+
+    def sum_investigation_cost_since(self, since_iso: str) -> float:
+        """Total Bedrock spend (USD) of investigations created at or after since_iso."""
+        with self.get_connection() as conn:
+            cur = conn.execute(
+                "SELECT COALESCE(SUM(cost_usd), 0) FROM investigations WHERE created_at >= ?;",
+                (canonical_utc(since_iso),),
+            )
+            return float(cur.fetchone()[0])
 
     # -------------------------------------------------------------------------
     # Snapshots (Checkpoints with Checksum)

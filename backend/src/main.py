@@ -12,6 +12,7 @@ try:
     from src.ai.bedrock_client import BedrockClient
     from src.ai.model_registry import DynamicValidator
     from src.api.routes_access import router as access_router
+    from src.api.routes_investigation import router as investigation_router
     from src.api.routes_simulator import router as simulator_router
     from src.api.routes_system import router as system_router
     from src.api.routes_twin import router as twin_router
@@ -23,6 +24,7 @@ except ImportError:
     from ai.bedrock_client import BedrockClient
     from ai.model_registry import DynamicValidator
     from api.routes_access import router as access_router
+    from api.routes_investigation import router as investigation_router
     from api.routes_simulator import router as simulator_router
     from api.routes_system import router as system_router
     from api.routes_twin import router as twin_router
@@ -89,6 +91,7 @@ async def lifespan(app: FastAPI):
     app.state.clip_runner = runtime.clip_runner
     app.state.clip_job_manager = runtime.clip_job_manager
     app.state.tracker_factory = runtime.tracker_factory
+    app.state.investigation_service = runtime.investigation_service
 
     # 4. Background prune loop
     async def prune_loop():
@@ -135,6 +138,7 @@ app.add_middleware(
 
 app.include_router(system_router)
 app.include_router(twin_router)
+app.include_router(investigation_router)
 app.include_router(access_router)
 app.include_router(vision_router)
 app.include_router(simulator_router)
