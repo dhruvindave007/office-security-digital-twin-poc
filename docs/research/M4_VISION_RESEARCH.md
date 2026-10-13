@@ -2,7 +2,7 @@
 
 - **Date**: 2026-10-13
 - **Author**: Autonomous Engineering Team (Researcher Role)
-- **Status**: Completed (Awaiting Reviewer Approval)
+- **Status**: Approved with Corrections
 - **Hardware Profile**: Intel Core Ultra 7 155H (CPU + Intel Arc integrated GPU + Intel AI Boost NPU), 15.5 GB RAM, Windows 11. No NVIDIA GPU / No CUDA.
 
 ---
@@ -30,6 +30,12 @@
 - **Source Link**: [Ultralytics Assets v8.3.0](https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11n.pt) | [Ultralytics YOLO11 Docs](https://docs.ultralytics.com/models/yolo11/)
 - **Access Date**: 2026-10-13
 - **Verification**: Verified via HTTP HEAD request returning HTTP 200 OK.
+
+### PyTorch CPU Wheels (Windows cp311 / AMD64)
+- **Approved Torch CPU Pin**: `torch==2.14.1+cpu`
+- **Approved Torchvision CPU Pin**: `torchvision==0.29.1+cpu`
+- **Source Link**: [PyTorch CPU Index](https://download.pytorch.org/whl/cpu) (Access Date: 2026-10-13)
+- **Note on pyproject.toml**: `torch` and `torchvision` must **NOT** be added to `backend/pyproject.toml`. They are pre-installed via `uv pip` using the dedicated PyTorch CPU index, and the exact install commands are documented in `docs/VISION_CLIPS.md`.
 
 ---
 
@@ -69,7 +75,7 @@ The `.track()` call returns a list of `Results` objects (length 1 for a single i
 ```python
 r = results[0]
 if r.boxes is not None and r.boxes.id is not None:
-    boxes_xyxy = r.boxes.xyxy.cpu().tolist()  # List[List[float]]: [[x1, y1, x2, y2], ...]
+    boxes_xyxy = r.boxes.xyxy.cpu().tolist()   # List[List[float]]: [[x1, y1, x2, y2], ...]
     confidences = r.boxes.conf.cpu().tolist()  # List[float]: [0.92, 0.85, ...]
     track_ids = r.boxes.id.int().cpu().tolist() # List[int]: [1, 2, ...]
 ```
@@ -115,7 +121,7 @@ export_dir = model.export(format="openvino", half=False)
         persist=True,
         tracker="bytetrack.yaml",
         classes=[0],
-        device="intel:cpu",  # or "cpu"
+        device="intel:cpu",  # or "intel:gpu", "intel:npu"
         verbose=False
     )
     ```
@@ -124,19 +130,18 @@ export_dir = model.export(format="openvino", half=False)
 
 ---
 
-## 4. OpenVINO Device Strings for Intel Hardware
+## 4. OpenVINO Device Strings and Silent Fallback Guard
 
 ### Ultralytics Device String Mappings
 Ultralytics upstream documentation explicitly documents the following device strings:
-- **Intel CPU**: `"intel:cpu"` (or `"cpu"`)
-- **Intel Integrated GPU**: `"intel:gpu"`
-- **Intel NPU (AI Boost)**: `"intel:npu"`
-- **Automatic Target**: `"AUTO"` (supported via fallback)
+- **PyTorch CPU**: `"cpu"`
+- **Intel CPU (OpenVINO)**: `"intel:cpu"`
+- **Intel Integrated GPU (OpenVINO)**: `"intel:gpu"`
+- **Intel NPU AI Boost (OpenVINO)**: `"intel:npu"`
 
-### Implementation Mechanism in `ultralytics/nn/backends/openvino.py`
-In `OpenVINOBackend.load_model(self, weight)`:
+### Silent Fallback Risk & Benchmark Guard Rule
+In `ultralytics/nn/backends/openvino.py` lines 41-49:
 ```python
-core = ov.Core()
 fallback_device = "CPU" if core.available_devices == ["CPU"] else "AUTO"
 device_name = fallback_device
 
@@ -147,62 +152,32 @@ if isinstance(self.device, str) and self.device.startswith("intel"):
         LOGGER.warning(f"OpenVINO device '{device_name}' not available. Using '{fallback_device}' instead.")
         device_name = fallback_device
 ```
-1. When `device="intel:cpu"`, the device is parsed as `"CPU"`.
-2. When `device="intel:gpu"`, the device is parsed as `"GPU"`.
-3. When `device="intel:npu"`, the device is parsed as `"NPU"`.
-4. If the specified hardware accelerator is not reported in `core.available_devices`, it logs a warning and falls back to `"CPU"` or `"AUTO"`.
-5. If `device="cpu"` is passed, `startswith("intel")` is false, and it selects `fallback_device` (`"CPU"`).
-
-### Other Accelerator Device Strings
-- Any direct OpenVINO plugin device name string not following `intel:<target>`: **UNVERIFIED** (the upstream Ultralytics backend code only has special split parsing for strings with the `"intel:"` prefix; strings without it default to fallback device).
+**CRITICAL ARCHITECTURAL RULE**: Ultralytics silently falls back to CPU/AUTO with only a warning if the requested Intel accelerator is not present. Therefore, in the Step 7 benchmark suite:
+1. For every `openvino-*` configuration, **first** read `openvino.Core().available_devices`.
+2. Record `available_devices` in the benchmark JSON under `hardware.openvino_devices`.
+3. If the requested target (`CPU`, `GPU`, `NPU`) is not present in `available_devices` (matching exact name or `"NAME."` prefix), record:
+   ```json
+   {
+       "status": "unavailable",
+       "available_devices": [...]
+   }
+   ```
+   and **skip** running that configuration.
+4. **Never report a benchmark result for an accelerator device that was not physically available.**
 - Sources:
   - [Ultralytics OpenVINO Guide](https://docs.ultralytics.com/integrations/openvino/) (Access Date: 2026-10-13)
-  - [GitHub Source: ultralytics/nn/backends/openvino.py](https://github.com/ultralytics/ultralytics/blob/main/ultralytics/nn/backends/openvino.py#L41-L58) (Access Date: 2026-10-13)
+  - [GitHub Source: ultralytics/nn/backends/openvino.py#L41-L58](https://github.com/ultralytics/ultralytics/blob/main/ultralytics/nn/backends/openvino.py#L41-L58) (Access Date: 2026-10-13)
   - [OpenVINO Device Documentation](https://docs.openvino.ai/2026/openvino-workflow/running-inference/inference-devices-and-modes.html) (Access Date: 2026-10-13)
 
 ---
 
 ## 5. Resetting Tracker State Between Independent Clips
 
-When tracking consecutive frames within a clip, `persist=True` stores tracker instances across frames in `predictor.trackers`. When starting a new, independent clip, tracker state (Kalman filter covariances, active/lost track lists, ID counters) must be reset to avoid carrying over tracks.
-
-### Tracker State Lifecycle Analysis
-In `ultralytics/trackers/track.py` (`on_predict_start`):
-```python
-trackers = getattr(predictor, "trackers", []) if persist else []
-predictor.trackers = trackers + [TRACKER_MAP[cfg.tracker_type](args=cfg) for _ in range(needed - len(trackers))]
-```
-And in `ultralytics/trackers/basetrack.py`:
-```python
-class BaseTrack:
-    _count = 0
-    ...
-    @staticmethod
-    def reset_id() -> None:
-        BaseTrack._count = 0
-```
-
-### Approved Reset Methods
-1. **Model Predictor Tracker Reset & Global ID Reset**:
-   Within the tracker adapter (`UltralyticsPersonTracker.reset()`):
-   ```python
-   # Clear active tracker instances from predictor
-   if hasattr(self.model, "predictor") and self.model.predictor is not None:
-       self.model.predictor.trackers = []
-   # Reset global track ID counter in Ultralytics BaseTrack
-   try:
-       from ultralytics.trackers.basetrack import BaseTrack
-       BaseTrack.reset_id()
-   except ImportError:
-       pass
-   ```
-   When `predictor.trackers` is emptied, the next `.track(..., persist=True)` call recognizes `len(predictor.trackers) == 0` and instantiates a brand new `BYTETracker` instance.
-2. **Fresh Model Instantiation**:
-   Re-instantiating `YOLO(model_path)` provides a fresh, clean predictor with no attached trackers.
-3. Sources:
-   - [GitHub Source: ultralytics/trackers/track.py](https://github.com/ultralytics/ultralytics/blob/main/ultralytics/trackers/track.py#L45-L95) (Access Date: 2026-10-13)
-   - [GitHub Source: ultralytics/trackers/basetrack.py](https://github.com/ultralytics/ultralytics/blob/main/ultralytics/trackers/basetrack.py#L40-L115) (Access Date: 2026-10-13)
-   - [Ultralytics Track Mode Documentation](https://docs.ultralytics.com/modes/track/#persisting-tracks-loop) (Access Date: 2026-10-13)
+### Approved Reset Implementation (Option B)
+To ensure complete isolation and deterministic execution across independent clips without coupling to private Ultralytics internal fields:
+- `UltralyticsPersonTracker.reset()` **creates a fresh `YOLO` instance from the same weights path**.
+- **Do NOT touch `predictor.trackers` or `BaseTrack` internals.**
+- Creating a fresh `YOLO` instance cleanly initializes a brand new predictor and fresh tracker instances, ensuring no state leakage between video clips.
 
 ---
 
@@ -221,9 +196,7 @@ Inspection of `https://pypi.org/pypi/ultralytics/json` for `ultralytics==8.4.176
 
 ### Consequence for Repository Dependencies
 - `ultralytics` **automatically pulls in `opencv-python` and `torch`**.
-- Per project rules in `docs/prompts/M4_VISION_PROMPT.md` (Step 1, item 6):
-  > "Whether `ultralytics` pulls in `opencv-python` and `torch`. If so, we use its OpenCV and do NOT add `opencv-python-headless`."
-- Therefore, we will **NOT** add `opencv-python-headless` to `backend/pyproject.toml`.
+- Per project rules: we use its bundled `opencv-python` and do **NOT** add `opencv-python-headless`.
 - Sources:
   - [PyPI Metadata: ultralytics/json](https://pypi.org/pypi/ultralytics/json) (Access Date: 2026-10-13)
   - [GitHub Source: ultralytics/pyproject.toml](https://github.com/ultralytics/ultralytics/blob/main/pyproject.toml) (Access Date: 2026-10-13)
@@ -232,70 +205,30 @@ Inspection of `https://pypi.org/pypi/ultralytics/json` for `ultralytics==8.4.176
 
 ## 7. Installing CPU-Only PyTorch on Windows with `uv`
 
-### The Issue with Default PyPI Wheels
-By default, installing `torch` from standard PyPI on Windows fetches pre-built binary wheels containing NVIDIA CUDA runtime and cuDNN libraries (often exceeding 2.5 GB download size). On a machine with Intel Core Ultra 7 (no NVIDIA GPU), this introduces unnecessary bloat and overhead.
-
-### PyTorch CPU Wheels
-PyTorch maintains dedicated CPU-only wheels on `https://download.pytorch.org/whl/cpu`.
-- Verified available wheels on index:
-  - `torch-2.9.1+cpu-cp311-cp311-win_amd64.whl`
-  - `torchvision-0.29.1+cpu-cp311-cp311-win_amd64.whl`
-
-### Recommended Installation Strategy via `uv`
-
-#### Strategy 1: Explicit CLI Pre-installation with `uv pip` (Recommended for Milestone M4)
-To ensure the venv receives the lightweight CPU-only wheel without pulling CUDA:
-```powershell
-uv pip install --python .\.venv\Scripts\python.exe torch torchvision --index-url https://download.pytorch.org/whl/cpu
-```
-Once `torch` and `torchvision` CPU are installed in the venv, running:
-```powershell
-uv pip install --python .\.venv\Scripts\python.exe -e ".[dev,vision]"
-```
-will recognize that `torch` and `torchvision` requirements are already satisfied and will install `ultralytics` and `openvino` from PyPI without downloading CUDA wheels.
-
-#### Strategy 2: `pyproject.toml` Configuration with `tool.uv`
-Alternatively, `backend/pyproject.toml` can define explicit index routing:
-```toml
-[[tool.uv.index]]
-name = "pytorch-cpu"
-url = "https://download.pytorch.org/whl/cpu"
-explicit = true
-
-[tool.uv.sources]
-torch = { index = "pytorch-cpu" }
-torchvision = { index = "pytorch-cpu" }
-```
-- Setting `explicit = true` prevents `uv` from searching the PyTorch index for any non-PyTorch packages.
-
-### Verification of CPU Build
-After installation, verify that CUDA is absent:
-```powershell
-.\.venv\Scripts\python.exe -c "import torch; print('CUDA available:', torch.cuda.is_available()); print('CUDA version:', torch.version.cuda); assert torch.version.cuda is None, 'CUDA build installed!'"
-```
-- Expected output:
-  - `CUDA available: False`
-  - `CUDA version: None`
-- Sources:
-  - [Astral UV: Integration with PyTorch](https://docs.astral.sh/uv/guides/integration/pytorch/) (Access Date: 2026-10-13)
-  - [PyTorch Local Installation Guide](https://pytorch.org/get-started/locally/) (Access Date: 2026-10-13)
-  - [PyTorch CPU Index Repository](https://download.pytorch.org/whl/cpu/torch/) (Access Date: 2026-10-13)
+### Install Protocol
+1. Pre-install CPU-only PyTorch and Torchvision wheels:
+   ```powershell
+   uv pip install --python .\.venv\Scripts\python.exe --index-url https://download.pytorch.org/whl/cpu torch==2.14.1+cpu torchvision==0.29.1+cpu
+   ```
+2. Install project with development and vision extras:
+   ```powershell
+   uv pip install --python .\.venv\Scripts\python.exe -e ".[dev,vision]"
+   ```
+3. Verification:
+   ```powershell
+   .\.venv\Scripts\python.exe -c "import torch; print('torch version:', torch.__version__); print('torch cuda:', torch.version.cuda); assert torch.version.cuda is None, 'CUDA build installed!'; assert torch.__version__.endswith('+cpu'), 'Not a CPU build!'"
+   ```
+   If the second command replaced torch with a non-CPU build, STOP and report immediately.
 
 ---
 
-## 8. Summary of Proposed Pins for Reviewer Approval
+## 8. Summary of Approved Pins
 
-| Package | Proposed Pin | Index Source | License | Notes |
-|---|---|---|---|---|
-| `torch` | `torch==2.9.1+cpu` (or `>=2.0.0`) | `https://download.pytorch.org/whl/cpu` | BSD-3-Clause | CPU-only Windows AMD64 wheel |
-| `torchvision` | `torchvision==0.29.1+cpu` (or `>=0.15.0`) | `https://download.pytorch.org/whl/cpu` | BSD-3-Clause | Matches CPU torch |
-| `ultralytics` | `ultralytics==8.4.176` | PyPI | AGPL-3.0 | SOTA detector + ByteTrack |
-| `openvino` | `openvino==2026.4.1` | PyPI | Apache-2.0 | Intel Core Ultra CPU / GPU / NPU runtime |
-| `opencv-python` | Transitive (pulled by `ultralytics`) | PyPI | Apache-2.0 | Do NOT add `opencv-python-headless` |
-| Weights | `yolo11n.pt` | Ultralytics GitHub release asset | AGPL-3.0 | Downloaded on first use or placed in `data/models/` |
-
----
-
-## Conclusion and Stop Point
-Step 1 research is complete and verified with primary sources. No packages have been installed and no code files have been modified.
-Awaiting reviewer approval of the pinned versions and installation strategy before proceeding to Step 2.
+| Package / Artifact | Approved Pin | Source Index | License |
+|---|---|---|---|
+| `torch` | `torch==2.14.1+cpu` | `https://download.pytorch.org/whl/cpu` | BSD-3-Clause |
+| `torchvision` | `torchvision==0.29.1+cpu` | `https://download.pytorch.org/whl/cpu` | BSD-3-Clause |
+| `ultralytics` | `ultralytics==8.4.176` | PyPI | AGPL-3.0 |
+| `openvino` | `openvino==2026.4.1` | PyPI | Apache-2.0 |
+| `opencv-python` | Transitive (via `ultralytics`) | PyPI | Apache-2.0 |
+| Model weights | `yolo11n.pt` | Ultralytics GitHub release asset | AGPL-3.0 |
