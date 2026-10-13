@@ -267,13 +267,17 @@ class DigitalTwinEngine:
         self,
         now_iso: Optional[str] = None,
         ttl_seconds: Optional[float] = None,
+        track_id_prefix: Optional[str] = None,
     ) -> List[TwinEvent]:
-        """Prune inactive tracks exceeding TTL and emit TRACK_LOST events."""
+        """Prune inactive tracks exceeding TTL and emit TRACK_LOST events.
+
+        track_id_prefix limits pruning to tracks whose ID starts with it (None = all tracks).
+        """
         if not now_iso:
             now_iso = datetime.now(timezone.utc).isoformat()
 
         effective_ttl = self.track_ttl_seconds if ttl_seconds is None else ttl_seconds
-        pruned_entities = self.state.prune_inactive_tracks(now_iso, effective_ttl)
+        pruned_entities = self.state.prune_inactive_tracks(now_iso, effective_ttl, track_id_prefix)
         lost_events: List[TwinEvent] = []
 
         for entity in pruned_entities:
