@@ -25,4 +25,13 @@ def test_settings_defaults(monkeypatch):
     assert settings.bedrock_read_timeout == 60.0
     assert settings.bedrock_max_retries == 3
     assert settings.access_config_path == "data/access/doors.yaml"
+    assert settings.vision_model == "yolo11n.pt"
+    assert settings.vision_models_dir == "data/models"
+    assert settings.vision_device == "cpu"
+    assert settings.vision_tracker == "bytetrack.yaml"
+    assert settings.vision_clips_dir == "data/clips"
+    assert settings.vision_min_confidence == 0.35
+    assert settings.vision_process_fps == 5.0
+    assert settings.vision_benchmarks_dir == "data/benchmarks"
+
 

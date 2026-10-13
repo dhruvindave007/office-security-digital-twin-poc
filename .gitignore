@@ -46,11 +46,16 @@ dist/
 data/*.db
 data/*.sqlite
 data/*.sqlite3
+data/models/
+data/clips/out/
 data/clips/*.mp4
 data/clips/*.mkv
 data/clips/*.avi
+data/clips/*.mov
+data/clips/*.webm
 !data/clips/.gitkeep
 !data/assets/.gitkeep
+
 
 # OS & IDE
 .DS_Store
