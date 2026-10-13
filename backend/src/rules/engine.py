@@ -65,14 +65,23 @@ class IncidentRuleEngine:
 
     def _load_open_incidents(self) -> None:
         """Load open and investigating incidents from ledger into in-memory dedupe registry on startup/restart."""
-        open_list = self.store.get_incidents(status="OPEN", limit=500)
-        investigating_list = self.store.get_incidents(status="INVESTIGATING", limit=500)
-        active_list = open_list + investigating_list
-        active_list.sort(key=lambda inc: inc.start_time)
-        for inc in active_list:
+        # No limit: a capped reload silently broke dedupe for the oldest open incidents.
+        for inc in self.store.get_active_incidents():
             key = self._get_dedupe_key(inc.incident_type, inc.zone_id, inc.track_id)
             if key:
                 self._open_incidents[key] = inc
+
+    def sync_incident(self, incident: Incident) -> None:
+        """Make the dedupe registry agree with an incident changed outside the engine (e.g. PATCH).
+
+        OPEN/INVESTIGATING: (re-)register this exact object, so later evidence appends to the current
+        status instead of overwriting it with a stale copy. RESOLVED/FALSE_POSITIVE: forget it.
+        """
+        self.forget(incident.incident_id)
+        if incident.status in ("OPEN", "INVESTIGATING"):
+            key = self._get_dedupe_key(incident.incident_type, incident.zone_id, incident.track_id)
+            if key:
+                self._open_incidents[key] = incident
 
     def forget(self, incident_id: str) -> None:
         """Remove an incident from the open deduplication index by incident_id."""
