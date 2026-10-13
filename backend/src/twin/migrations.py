@@ -284,6 +284,35 @@ MIGRATIONS: List[Tuple[int, str, str]] = [
         ON incidents(start_time DESC);
         """,
     ),
+    (
+        4,
+        "AI incident investigations ledger",
+        """
+        CREATE TABLE IF NOT EXISTS investigations (
+            investigation_id TEXT PRIMARY KEY,
+            incident_id TEXT NOT NULL REFERENCES incidents(incident_id) ON DELETE CASCADE,
+            created_at TEXT NOT NULL,
+            status TEXT NOT NULL CHECK(status IN ('COMPLETED', 'INVALID_OUTPUT', 'FAILED')),
+            model_id TEXT NOT NULL,
+            question TEXT,
+            result_json TEXT,
+            raw_output TEXT,
+            verification_json TEXT NOT NULL DEFAULT '{}',
+            evidence_event_count INTEGER NOT NULL DEFAULT 0,
+            input_tokens INTEGER NOT NULL DEFAULT 0,
+            output_tokens INTEGER NOT NULL DEFAULT 0,
+            cost_usd REAL NOT NULL DEFAULT 0,
+            latency_ms REAL NOT NULL DEFAULT 0,
+            error TEXT
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_investigations_incident
+        ON investigations(incident_id, created_at DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_investigations_created
+        ON investigations(created_at);
+        """,
+    ),
 ]
 
 

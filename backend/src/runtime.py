@@ -9,6 +9,9 @@ from typing import Any, Callable, Dict, Optional
 
 try:
     from src.access.config import load_access_config
+    from src.ai.bedrock_client import BedrockClient
+    from src.ai.investigation.evidence import EvidenceBuilder
+    from src.ai.investigation.service import InvestigationService
     from src.access.service import AccessControlService
     from src.core.paths import _resolve_data_path
     from src.rules.correlation import CorrelationEngine
@@ -25,6 +28,9 @@ try:
     from src.vision.zones import VisionZoneResolver
 except ImportError:
     from access.config import load_access_config
+    from ai.bedrock_client import BedrockClient
+    from ai.investigation.evidence import EvidenceBuilder
+    from ai.investigation.service import InvestigationService
     from access.service import AccessControlService
     from core.paths import _resolve_data_path
     from rules.correlation import CorrelationEngine
@@ -57,6 +63,28 @@ class Runtime:
     clip_runner: Optional[VideoClipRunner] = None
     clip_job_manager: Optional[ClipJobManager] = None
     tracker_factory: Optional[Callable[[], Any]] = None
+    investigation_service: Optional[InvestigationService] = None
+
+
+def make_investigation_service(settings: Any, store: Any, policy: Any = None, access_config: Any = None,
+                               topology: Any = None) -> InvestigationService:
+    """Bedrock investigation service. Creating it makes no AWS call (the boto3 client is lazy)."""
+    client = BedrockClient(
+        region_name=settings.aws_region,
+        default_model_id=settings.bedrock_investigation_model_id,
+        connect_timeout=settings.bedrock_connect_timeout,
+        read_timeout=settings.bedrock_read_timeout,
+        max_retries=settings.bedrock_max_retries,
+    )
+    return InvestigationService(
+        bedrock_client=client,
+        store=store,
+        evidence_builder=EvidenceBuilder(store, policy=policy, access_config=access_config, topology=topology),
+        model_id=settings.bedrock_investigation_model_id,
+        max_output_tokens=settings.investigation_max_output_tokens,
+        daily_budget_usd=settings.investigation_daily_budget_usd,
+        effort=settings.investigation_effort,
+    )
 
 
 def make_tracker(settings: Any, model: Optional[str] = None, device: Optional[str] = None):
@@ -154,6 +182,8 @@ def build_runtime(settings: Any) -> Runtime:
             clip_runner=clip_runner,
             clip_job_manager=ClipJobManager(runner=clip_runner),
             tracker_factory=lambda: make_tracker(settings),
+            investigation_service=make_investigation_service(
+                settings, twin_engine.store, policy, access_config, topology),
         )
     except Exception as e:
         logger.warning(
@@ -176,4 +206,9 @@ def build_runtime(settings: Any) -> Runtime:
                 )
             except Exception as e2:
                 logger.warning(f"Failed to initialize access control service: {e2}")
-        return Runtime(twin_engine=twin_engine, rule_engine=rule_engine, access_service=access_service)
+        return Runtime(
+            twin_engine=twin_engine,
+            rule_engine=rule_engine,
+            access_service=access_service,
+            investigation_service=make_investigation_service(settings, twin_engine.store, policy, access_config),
+        )
