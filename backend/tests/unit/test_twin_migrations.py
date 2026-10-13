@@ -28,8 +28,8 @@ def test_migrations_execution():
     # Verify migration record was recorded
     cur = conn.execute("SELECT version, description FROM schema_migrations ORDER BY version ASC;")
     rows = cur.fetchall()
-    assert len(rows) == 3
-    assert rows[-1][0] == 3
+    assert len(rows) == 4
+    assert rows[-1][0] == 4
 
     # Re-running migrations should be idempotent and apply 0 new migrations
     applied_again = run_migrations(conn)
@@ -75,9 +75,9 @@ def test_fresh_db_ends_at_version_3():
     """Verify fresh database runs all migrations and ends at version 3."""
     conn = sqlite3.connect(":memory:")
     applied = run_migrations(conn)
-    assert applied == [1, 2, 3]
+    assert applied == [1, 2, 3, 4]
     cur = conn.execute("SELECT MAX(version) FROM schema_migrations;")
-    assert cur.fetchone()[0] == 3
+    assert cur.fetchone()[0] == 4
 
 
 def test_v1_upgrade_to_v2_preserves_row():
@@ -119,7 +119,7 @@ def test_v1_upgrade_to_v2_preserves_row():
 
     # Run migrations - should apply v2 and v3
     applied = run_migrations(conn)
-    assert applied == [2, 3]
+    assert applied == [2, 3, 4]
 
     # Confirm the incident row was preserved
     cur = conn.execute(
@@ -247,7 +247,7 @@ def test_v2_upgrade_to_v3_preserves_events_and_sequence():
 
     # Run migrations - applies only v3
     applied = run_migrations(conn)
-    assert applied == [3]
+    assert applied == [3, 4]
 
     # Check events and sequence numbers preserved
     cur = conn.execute("SELECT sequence_num, event_id FROM events ORDER BY sequence_num ASC;")
