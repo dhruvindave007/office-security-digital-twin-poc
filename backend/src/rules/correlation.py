@@ -211,10 +211,14 @@ class CorrelationEngine:
                         if tailgate_grant is not None:
                             badge_name = tailgate_grant["badge_id"]
                             prior_trk = tailgate_grant["used_by_track"]
+                            # Spell out both reference times: an earlier wording ("2.0 s after badge X
+                            # admitted track Y") was misread by the AI as 2.0 s after the badge grant.
                             summary = (
-                                f"Track {event.track_id} entered {event.zone_id} "
-                                f"{tailgate_diff:.1f} s after badge {badge_name} admitted "
-                                f"track {prior_trk}; no separate badge event matched."
+                                f"Track {event.track_id} entered {event.zone_id} at "
+                                f"{current_event_dt.strftime('%H:%M:%S')}, {tailgate_diff:.1f} s after track "
+                                f"{prior_trk} entered; {prior_trk} was admitted by badge {badge_name} granted at "
+                                f"{tailgate_grant['timestamp'].strftime('%H:%M:%S')}. No badge grant matched "
+                                f"track {event.track_id}."
                             )
                             candidates.append(
                                 IncidentCandidate(

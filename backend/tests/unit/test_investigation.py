@@ -16,12 +16,27 @@ from src.simulator.scenarios import load_scenario
 
 
 class FakeBedrock:
-    """Records calls; replies with a canned investigation citing the given IDs."""
+    """Records calls. Investigation calls get a canned investigation citing the given IDs; claim-judge
+    calls (recognised by their system prompt) get `judge_verdict` for every claim they are sent."""
 
-    def __init__(self, cite=None, text=None, stop_reason="end_turn", raise_exc=None):
+    def __init__(self, cite=None, text=None, stop_reason="end_turn", raise_exc=None, judge_verdict="supported"):
         self.calls, self.cite, self.text, self.stop_reason, self.raise_exc = [], cite, text, stop_reason, raise_exc
+        self.judge_calls, self.judge_verdict = [], judge_verdict
+
+    @staticmethod
+    def _response(kwargs, text, stop_reason="end_turn", tokens=(4000, 600)):
+        return BedrockConverseResponse(text=text, model_id=kwargs["model_id"], region="us-east-1", request_id="r",
+                                       latency_ms=12.0, usage=TokenUsage(input_tokens=tokens[0], output_tokens=tokens[1], total_tokens=sum(tokens)),
+                                       stop_reason=stop_reason, streamed=False, timestamp="t", content_blocks=[])
 
     def converse(self, **kwargs):
+        if kwargs.get("system_prompt", "").startswith("You audit"):
+            self.judge_calls.append(kwargs)
+            msg = kwargs["messages"][0]["content"][0]["text"]
+            claims = json.loads(msg.split("CLAIMS:\n", 1)[1].split("\n\nFULL EVIDENCE", 1)[0])
+            verdict = self.judge_verdict if callable(self.judge_verdict) else (lambda c: self.judge_verdict)
+            return self._response(kwargs, json.dumps({"verdicts": [
+                {"claim_id": c["claim_id"], "verdict": verdict(c), "reason": "fake judge"} for c in claims]}), tokens=(2000, 300))
         self.calls.append(kwargs)
         if self.raise_exc:
             raise self.raise_exc
@@ -30,9 +45,7 @@ class FakeBedrock:
             "findings": [{"statement": "s", "kind": "observation", "event_ids": self.cite or []}],
             "person_identity": "not enough evidence", "benign_explanations": ["b"], "missing_evidence": ["m"],
             "recommended_actions": ["r"], "confidence": "medium", "answer": ""})
-        return BedrockConverseResponse(text=text, model_id=kwargs["model_id"], region="us-east-1", request_id="r",
-                                       latency_ms=12.0, usage=TokenUsage(input_tokens=4000, output_tokens=600, total_tokens=4600),
-                                       stop_reason=self.stop_reason, streamed=False, timestamp="t", content_blocks=[])
+        return self._response(kwargs, text, self.stop_reason)
 
 
 def _run_tailgating():
@@ -96,7 +109,11 @@ def test_investigation_success_is_verified_costed_and_audited():
         assert body["status"] == "COMPLETED"
         assert body["verification"]["passed"] is True
         assert body["verification"]["cited_ids"] == 2
-        assert body["cost_usd"] == pytest.approx(estimate_cost_usd(svc.model_id, 4000, 600))
+        # cost = investigation call + claim-judge call
+        assert body["cost_usd"] == pytest.approx(estimate_cost_usd(svc.model_id, 4000, 600) + estimate_cost_usd(svc.model_id, 2000, 300))
+        claims = body["verification"]["claims"]
+        assert claims["passed"] is True and claims["judge"]["ran"] is True and claims["unsupported"] == 0
+        assert len(svc.bedrock.judge_calls) == 1
         assert body["question"] == "Who is it?"
         call = svc.bedrock.calls[0]
         assert call["model_id"] == "global.anthropic.claude-haiku-5-5"
@@ -158,3 +175,88 @@ def test_inference_config_omits_temperature_when_none():
 def test_cost_is_none_for_unpriced_model():
     assert estimate_cost_usd("some.unknown-model", 1000, 1000) is None
     assert estimate_cost_usd("global.anthropic.claude-haiku-5-5", 1_000_000, 1_000_000) == pytest.approx(0.60)
+
+
+# ---------------- claim-support verification (the gap GPT-6 pointed out: valid IDs != supported claim)
+from src.ai.investigation.claim_check import ClaimChecker  # noqa: E402
+
+
+def _tailgating_evidence():
+    inc = _run_tailgating()["TAILGATING"]
+    ev = app.state.investigation_service.evidence_builder.build(inc.incident_id)
+    by_track = {}
+    for e in ev["events"]:
+        by_track.setdefault(e["track_id"], []).append(e)
+    return ev, by_track
+
+
+def _result(claims):
+    return {"summary": "", "answer": "", "timeline": [], "findings": claims}
+
+
+def test_deterministic_stage_catches_entity_not_in_cited_records():
+    with TestClient(app):
+        ev, by_track = _tailgating_evidence()
+        tail_entry = next(e for e in by_track["sim_trk_tail"] if e["type"] == "ZONE_ENTERED")
+        claim = {"statement": "sim_trk_admin entered zone_server_room.", "kind": "observation",
+                 "event_ids": [tail_entry["event_id"]]}          # cites the OTHER person's event
+        out = ClaimChecker().check(_result([claim]), ev, use_judge=False)
+        c = out["claims"][0]
+        assert c["verdict"] == "unsupported"
+        assert any("sim_trk_admin" in i for i in c["deterministic_issues"])
+
+
+def test_deterministic_stage_catches_wrong_time():
+    with TestClient(app):
+        ev, by_track = _tailgating_evidence()
+        tail_entry = next(e for e in by_track["sim_trk_tail"] if e["type"] == "ZONE_ENTERED")   # at 10:00:04
+        claim = {"statement": "sim_trk_tail entered zone_server_room at 10:00:30.", "kind": "observation",
+                 "event_ids": [tail_entry["event_id"]]}
+        c = ClaimChecker().check(_result([claim]), ev, use_judge=False)["claims"][0]
+        assert c["verdict"] == "unsupported"
+        assert any("10:00:30" in i for i in c["deterministic_issues"])
+
+
+def test_correct_claim_passes_deterministic_stage():
+    with TestClient(app):
+        ev, by_track = _tailgating_evidence()
+        tail_entry = next(e for e in by_track["sim_trk_tail"] if e["type"] == "ZONE_ENTERED")
+        claim = {"statement": "sim_trk_tail entered zone_server_room at 10:00:04.", "kind": "observation",
+                 "event_ids": [tail_entry["event_id"]]}
+        c = ClaimChecker().check(_result([claim]), ev, use_judge=False)["claims"][0]
+        assert c["deterministic_issues"] == [] and c["verdict"] == "unchecked"
+
+
+def test_judge_unsupported_fails_investigation_even_with_valid_ids():
+    """The GPT-6 example: both IDs exist, but nothing links that person to that badge."""
+    with TestClient(app) as client:
+        inc = _run_tailgating()["TAILGATING"]
+        svc = app.state.investigation_service
+        svc.bedrock = FakeBedrock(cite=json.loads(inc.supporting_event_ids_json), judge_verdict="unsupported")
+        body = client.post(f"/api/twin/incidents/{inc.incident_id}/investigate").json()
+        v = body["verification"]
+        assert v["ids_passed"] is True            # every cited ID exists...
+        assert v["claims"]["unsupported"] > 0     # ...but the claims are not supported
+        assert v["passed"] is False
+
+
+def test_judge_failure_keeps_deterministic_stage_and_marks_unchecked():
+    from src.ai.errors import BedrockThrottlingError
+
+    with TestClient(app) as client:
+        inc = _run_tailgating()["TAILGATING"]
+        svc = app.state.investigation_service
+        fake = FakeBedrock(cite=json.loads(inc.supporting_event_ids_json))
+        original = fake.converse
+
+        def flaky(**kwargs):
+            if kwargs.get("system_prompt", "").startswith("You audit"):
+                raise BedrockThrottlingError("judge throttled")
+            return original(**kwargs)
+        fake.converse = flaky
+        svc.bedrock = fake
+        body = client.post(f"/api/twin/incidents/{inc.incident_id}/investigate").json()
+        claims = body["verification"]["claims"]
+        assert body["status"] == "COMPLETED"
+        assert claims["judge"]["ran"] is False and "throttled" in claims["judge"]["error"]
+        assert claims["unchecked"] > 0 and body["verification"]["passed"] is False
