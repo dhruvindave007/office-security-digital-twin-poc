@@ -75,6 +75,14 @@ class TwinState:
 
             return old_zone, zone_id
 
+    def remove_track(self, track_id: str) -> Optional[TrackedEntity]:
+        """Remove a track (e.g. replaying TRACK_LOST) and release its zone occupancy."""
+        with self._lock:
+            entity = self._active_tracks.pop(track_id, None)
+            if entity and entity.current_zone_id and entity.current_zone_id in self._zone_occupancy:
+                self._zone_occupancy[entity.current_zone_id].discard(track_id)
+            return entity
+
     def get_track(self, track_id: str) -> Optional[TrackedEntity]:
         """Fetch a copy of a tracked entity by ID."""
         with self._lock:

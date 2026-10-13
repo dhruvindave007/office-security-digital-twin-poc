@@ -1,4 +1,5 @@
 import logging
+import re
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -169,6 +170,10 @@ async def run_clip(name: str, request: Request):
             status_code=503,
             detail="Tracker factory is not configured.",
         )
+
+    # Names map to files on disk: allow only plain names so "..\x" cannot escape the folder.
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", name):
+        raise HTTPException(status_code=404, detail=f"Clip '{name}' not found.")
 
     settings = getattr(request.app.state, "settings", None) or get_settings()
     clips_dir = _resolve_data_path(settings.vision_clips_dir, "data/clips")

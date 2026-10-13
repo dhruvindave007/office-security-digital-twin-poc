@@ -48,7 +48,11 @@ def test_event_validator():
     with pytest.raises(ValueError, match="cannot be empty"):
         EventValidator.validate_track_id("   ")
 
-    assert EventValidator.validate_timestamp("2026-09-19T12:00:00Z") == "2026-09-19T12:00:00Z"
+    assert EventValidator.validate_timestamp("2026-09-19T12:00:00Z") == "2026-09-19T12:00:00.000000Z"
+    # Normalisation: every accepted format maps to ONE canonical fixed-width UTC string
+    assert EventValidator.validate_timestamp("2026-09-19T12:00:00+00:00") == "2026-09-19T12:00:00.000000Z"
+    assert EventValidator.validate_timestamp("2026-09-19T12:00:00") == "2026-09-19T12:00:00.000000Z"
+    assert EventValidator.validate_timestamp("2026-09-19T07:00:00-05:00") == "2026-09-19T12:00:00.000000Z"
     with pytest.raises(ValueError, match="Invalid ISO-8601"):
         EventValidator.validate_timestamp("not-a-timestamp")
 

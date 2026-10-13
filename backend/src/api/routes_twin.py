@@ -6,10 +6,12 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Query, Request
 try:
     from src.core.locks import TWIN_WRITE_LOCK
+    from src.core.timeutil import canonical_utc
     from src.rules.policy import parse_utc_timestamp
     from src.twin.history import occupancy_series, position_heatmap, track_path
 except ImportError:
     from core.locks import TWIN_WRITE_LOCK
+    from core.timeutil import canonical_utc
     from rules.policy import parse_utc_timestamp
     from twin.history import occupancy_series, position_heatmap, track_path
 
@@ -43,6 +45,16 @@ except ImportError:
     )
 
 router = APIRouter(prefix="/api/twin", tags=["Digital Twin"])
+
+
+def _time_param(name: str, value: Optional[str]) -> Optional[str]:
+    """Validate an ISO-8601 query parameter and return it in canonical ledger format (422 on garbage)."""
+    if value is None or value == "":
+        return None
+    try:
+        return canonical_utc(value)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=f"Invalid {name}: {e}")
 
 
 def _get_engine(request: Request) -> DigitalTwinEngine:
@@ -167,6 +179,8 @@ async def get_events(
     end_time: Optional[str] = None,
 ):
     """Query the immutable append-only event ledger with indexed filters."""
+    start_time = _time_param("start_time", start_time)
+    end_time = _time_param("end_time", end_time)
     engine = _get_engine(request)
     events, total = engine.store.get_events(
         limit=limit,
@@ -239,7 +253,7 @@ async def get_incidents(
     incident_responses = [_row_to_incident_response(inc) for inc in incidents]
 
     return IncidentsListResponse(
-        total=len(incident_responses),
+        total=engine.store.count_incidents(status=status, severity=severity, zone_id=zone_id),
         incidents=incident_responses,
     )
 
@@ -275,15 +289,20 @@ async def patch_incident(
 
         now_iso = datetime.now(timezone.utc).isoformat()
         inc.updated_at = now_iso
-        if body.status in ("RESOLVED", "FALSE_POSITIVE") and inc.end_time is None:
-            inc.end_time = now_iso
+        if body.status in ("RESOLVED", "FALSE_POSITIVE"):
+            if inc.end_time is None:
+                inc.end_time = now_iso
+        else:
+            inc.end_time = None  # re-opened: it has not ended
         inc.status = body.status
 
         engine.store.insert_incident(inc)
 
+        # Keep the rule engine's dedupe copy identical to what was just stored; otherwise the
+        # next piece of evidence overwrites this status with the engine's stale OPEN copy.
         rule_engine = getattr(request.app.state, "rule_engine", None)
-        if rule_engine and body.status in ("RESOLVED", "FALSE_POSITIVE"):
-            rule_engine.forget(incident_id)
+        if rule_engine:
+            rule_engine.sync_incident(inc)
 
         return _row_to_incident_response(inc)
 
@@ -296,13 +315,14 @@ async def get_track_path(
     end_time: Optional[str] = None,
 ):
     """Retrieve ordered path points for a specific track. Returns 404 if no points exist."""
+    start_time = _time_param("start_time", start_time)
+    end_time = _time_param("end_time", end_time)
     engine = _get_engine(request)
-    events, _ = engine.store.get_events(
+    events = engine.store.get_events_ascending(
         track_id=track_id,
-        event_type="PERSON_DETECTED",
+        event_types=["PERSON_DETECTED"],
         start_time=start_time,
         end_time=end_time,
-        limit=10000,
     )
     points = track_path(events)
     if not points:
@@ -318,7 +338,7 @@ async def get_occupancy_history(
     request: Request,
     start_time: Optional[str] = None,
     end_time: Optional[str] = None,
-    bucket_seconds: int = Query(60),
+    bucket_seconds: int = Query(60, ge=1, le=86400),
     zone_id: Optional[str] = None,
 ):
     """Retrieve time-series occupancy buckets across zones."""
@@ -353,7 +373,12 @@ async def get_occupancy_history(
         )
 
     engine = _get_engine(request)
-    events, _ = engine.store.get_events(end_time=end_time, limit=50000)
+    # Occupancy at any instant depends on EVERY earlier zone event, so fetch all of them
+    # (a newest-N limit silently dropped tracks that entered long ago).
+    events = engine.store.get_events_ascending(
+        event_types=["ZONE_ENTERED", "ZONE_EXITED", "CROSS_ZONE_TRANSITION", "TRACK_LOST"],
+        end_time=canonical_utc(end_dt),
+    )
     series = occupancy_series(events, start_dt, end_dt, bucket_seconds)
 
     if zone_id:
@@ -379,7 +404,7 @@ async def get_position_heatmap(
     cell_size_m: float = Query(1.0),
 ):
     """Generate spatial 2D heatmap aggregated over PERSON_DETECTED observations."""
-    if cell_size_m < 0.25 or cell_size_m > 10.0:
+    if not math.isfinite(cell_size_m) or cell_size_m < 0.25 or cell_size_m > 10.0:
         raise HTTPException(
             status_code=422,
             detail="cell_size_m must be between 0.25 and 10.0.",
@@ -399,16 +424,17 @@ async def get_position_heatmap(
         except Exception as e:
             raise HTTPException(status_code=422, detail=f"Invalid timestamp format: {e}")
 
+    start_time = _time_param("start_time", start_time)
+    end_time = _time_param("end_time", end_time)
     engine = _get_engine(request)
     zones = engine.store.get_zones()
     width_m = max((z.max_x for z in zones), default=1.0)
     height_m = max((z.max_y for z in zones), default=1.0)
 
-    events, _ = engine.store.get_events(
-        event_type="PERSON_DETECTED",
+    events = engine.store.get_events_ascending(
+        event_types=["PERSON_DETECTED"],
         start_time=start_time,
         end_time=end_time,
-        limit=50000,
     )
     return position_heatmap(events, width_m, height_m, cell_size_m)
 
