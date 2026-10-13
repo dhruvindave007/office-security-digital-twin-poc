@@ -192,6 +192,9 @@ def test_api_twin_occupancy_history_200_and_422():
         buckets = res_ok.json()
         assert len(buckets) == 6
         assert "zone_workspace" in buckets[0]["occupancy"]
+        # Real values, not just shape: the track enters EXACTLY at the 10:00:00 boundary (inclusive)
+        # and stays. Kills the "<= changed to <" mutant the previous version of this test let through.
+        assert [b["occupancy"]["zone_workspace"] for b in buckets] == [0, 1, 1, 1, 1, 1]
 
         # 2. 200 with zone_id filter
         res_zone = client.get(
@@ -218,7 +221,29 @@ def test_api_twin_occupancy_history_200_and_422():
             "/api/twin/occupancy/history?start_time=2026-01-15T10:00:00Z&end_time=2026-01-15T10:05:00Z&bucket_seconds=0"
         )
         assert res_bad_bucket.status_code == 422
-        assert "at least 1" in res_bad_bucket.json()["detail"].lower()
+        assert "greater than or equal to 1" in str(res_bad_bucket.json()["detail"]).lower()
+
+        # 5b. 422 (not 500) for absurd bucket sizes and malformed timestamps
+        assert client.get(
+            "/api/twin/occupancy/history?start_time=2026-01-15T10:00:00Z&end_time=2026-01-15T10:05:00Z&bucket_seconds=1000000000000"
+        ).status_code == 422
+        assert client.get(
+            "/api/twin/occupancy/history?start_time=garbage&end_time=2026-01-15T10:05:00Z"
+        ).status_code == 422
+
+        # 5c. Equivalent timestamp spellings give identical answers (Z, +00:00, -05:00)
+        variants = [
+            ("2026-01-15T09:59:00Z", "2026-01-15T10:05:00Z"),
+            ("2026-01-15T09:59:00+00:00", "2026-01-15T10:05:00+00:00"),
+            ("2026-01-15T04:59:00-05:00", "2026-01-15T05:05:00-05:00"),
+        ]
+        answers = [
+            [b["occupancy"].get("zone_workspace") for b in client.get(
+                f"/api/twin/occupancy/history?start_time={s}&end_time={e}&bucket_seconds=60".replace("+", "%2B")
+            ).json()]
+            for s, e in variants
+        ]
+        assert answers[0] == answers[1] == answers[2] == [0, 1, 1, 1, 1, 1]
 
         # 6. 422 when bucket count exceeds 1440
         # 2 days (172800 seconds) with 60s buckets = 2880 buckets > 1440
@@ -244,6 +269,23 @@ def test_api_twin_heatmap_200_and_422():
         assert "cells" in grid
         assert grid["cols"] > 0
         assert grid["rows"] > 0
+        # Real values: exactly the two PERSON_DETECTED points, in the right cells
+        # ((10, 8) -> col 5, row 4 and (15, 12) -> col 7, row 6 at 2 m cells); ZONE_ENTERED is not counted.
+        assert sum(map(sum, grid["cells"])) == 2
+        assert grid["cells"][4][5] == 1
+        assert grid["cells"][6][7] == 1
+
+        # Time filter really filters: a window before the data has zero points, and an equivalent
+        # -05:00 spelling of the full window counts the same 2 points.
+        empty = client.get(
+            "/api/twin/heatmap?start_time=2026-01-14T00:00:00Z&end_time=2026-01-14T23:00:00Z&cell_size_m=2.0"
+        ).json()
+        assert sum(map(sum, empty["cells"])) == 0
+        offset = client.get(
+            "/api/twin/heatmap?start_time=2026-01-14T19:00:00-05:00&end_time=2026-01-15T19:00:00-05:00&cell_size_m=2.0"
+        ).json()
+        assert sum(map(sum, offset["cells"])) == 2
+        assert client.get("/api/twin/heatmap?cell_size_m=nan").status_code == 422
 
         # 2. 422 when cell_size_m < 0.25
         res_small = client.get("/api/twin/heatmap?cell_size_m=0.1")

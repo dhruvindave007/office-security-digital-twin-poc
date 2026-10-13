@@ -6,16 +6,15 @@ import yaml
 
 try:
     from src.core.paths import _resolve_data_path
+    from src.core.timeutil import parse_utc
 except ImportError:
     from core.paths import _resolve_data_path
+    from core.timeutil import parse_utc
 
 
 def parse_utc_timestamp(ts: str) -> datetime:
     """Parse ISO-8601 timestamp string, treating naive strings as UTC."""
-    dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc)
+    return parse_utc(ts)
 
 
 def _validate_hh_mm(val: Any, field_name: str = "time") -> Tuple[int, int]:
@@ -202,13 +201,28 @@ def load_access_policy(path: Union[str, Path] = "data/rules/access_policy.yaml")
 
     raw_restricted = data.get("restricted_zones", {})
     restricted_zones: Dict[str, RestrictedZonePolicy] = {}
-    if isinstance(raw_restricted, dict):
-        for zone_id, zone_cfg in raw_restricted.items():
-            if isinstance(zone_cfg, dict):
-                restricted_zones[zone_id] = RestrictedZonePolicy(
-                    min_security_level=int(zone_cfg.get("min_security_level", 1)),
-                    authorized_person_ids=list(zone_cfg.get("authorized_person_ids", [])),
-                )
+    # A malformed restricted zone must fail loudly: silently skipping it leaves the zone UNPROTECTED.
+    if raw_restricted is None:
+        raw_restricted = {}
+    if not isinstance(raw_restricted, dict):
+        raise ValueError("restricted_zones must be a mapping of zone_id -> {authorized_person_ids: [...]}")
+    for zone_id, zone_cfg in raw_restricted.items():
+        if zone_cfg is None:
+            zone_cfg = {}  # "zone_x:" with no body = restricted, nobody authorized
+        if not isinstance(zone_cfg, dict):
+            raise ValueError(f"restricted_zones.{zone_id} must be a mapping, got {type(zone_cfg).__name__}")
+        authorized = zone_cfg.get("authorized_person_ids", [])
+        if authorized is None:
+            authorized = []
+        if not isinstance(authorized, list) or not all(isinstance(p, str) for p in authorized):
+            raise ValueError(
+                f"restricted_zones.{zone_id}.authorized_person_ids must be a list of strings "
+                f"(a single string would be split into characters)"
+            )
+        restricted_zones[zone_id] = RestrictedZonePolicy(
+            min_security_level=int(zone_cfg.get("min_security_level", 1)),
+            authorized_person_ids=list(authorized),
+        )
 
     raw_hours = data.get("business_hours_utc", {})
     if isinstance(raw_hours, dict):

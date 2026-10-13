@@ -13,6 +13,7 @@ from src.twin.state import TwinState
 from src.twin.store import TwinStore
 from src.twin.telemetry import TwinTelemetry
 from src.twin.validators import EventValidator
+from src.core.timeutil import canonical_utc, parse_utc, utc_now_canonical
 
 logger = logging.getLogger("office_vision.twin.engine")
 
@@ -55,6 +56,8 @@ class DigitalTwinEngine:
         self.telemetry = telemetry or TwinTelemetry()
         self.dwell_threshold_seconds = dwell_threshold_seconds
         self.track_ttl_seconds = track_ttl_seconds
+        # (track_id, zone_id, dwell_start) already alerted: DWELL_TIME_EXCEEDED fires once per dwell period.
+        self._dwell_alerted: set = set()
 
         if geometry:
             self.geometry = geometry
@@ -98,7 +101,7 @@ class DigitalTwinEngine:
         x, y = EventValidator.validate_coordinates((x, y))
         confidence = EventValidator.validate_confidence(confidence)
         if not timestamp:
-            timestamp = datetime.utcnow().isoformat()
+            timestamp = utc_now_canonical()
         else:
             timestamp = EventValidator.validate_timestamp(timestamp)
 
@@ -119,6 +122,12 @@ class DigitalTwinEngine:
             confidence=confidence,
             person_id=person_id,
         )
+
+        # The twin may already know who this track is (e.g. from an earlier observation);
+        # stamp events with that identity so rules never see a known person as "unknown".
+        tracked_now = self.state.get_track(track_id)
+        if person_id is None and tracked_now is not None:
+            person_id = tracked_now.person_id
 
         # 5. Generate discrete domain events
         emitted_events: List[TwinEvent] = []
@@ -228,10 +237,12 @@ class DigitalTwinEngine:
             and updated_entity.current_zone_id
             and updated_entity.dwell_start
         ):
-            dwell_start_dt = datetime.fromisoformat(updated_entity.dwell_start.replace("Z", "+00:00"))
-            current_dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+            dwell_start_dt = parse_utc(updated_entity.dwell_start)
+            current_dt = parse_utc(timestamp)
             dwell_duration = (current_dt - dwell_start_dt).total_seconds()
-            if dwell_duration > self.dwell_threshold_seconds:
+            dwell_key = (track_id, updated_entity.current_zone_id, updated_entity.dwell_start)
+            if dwell_duration > self.dwell_threshold_seconds and dwell_key not in self._dwell_alerted:
+                self._dwell_alerted.add(dwell_key)
                 emitted_events.append(
                     TwinEvent(
                         event_id=generate_uuid7(),
@@ -273,8 +284,7 @@ class DigitalTwinEngine:
 
         track_id_prefix limits pruning to tracks whose ID starts with it (None = all tracks).
         """
-        if not now_iso:
-            now_iso = datetime.now(timezone.utc).isoformat()
+        now_iso = canonical_utc(now_iso) if now_iso else utc_now_canonical()
 
         effective_ttl = self.track_ttl_seconds if ttl_seconds is None else ttl_seconds
         pruned_entities = self.state.prune_inactive_tracks(now_iso, effective_ttl, track_id_prefix)
@@ -337,18 +347,10 @@ class DigitalTwinEngine:
                     person_id=evt.person_id,
                 )
             elif evt.event_type == "TRACK_LOST":
-                self.state.update_track(
-                    track_id=evt.track_id,
-                    camera_id=evt.camera_id,
-                    zone_id=None,
-                    position=pos,
-                    timestamp=evt.timestamp,
-                    confidence=evt.confidence or 1.0,
-                    person_id=evt.person_id,
-                )
-                entity = self.state.get_track(evt.track_id)
-                if entity:
-                    entity.status = "LOST"
+                # Mirror prune_tracks exactly: a lost track leaves the active set. (Previously replay
+                # re-created it as ACTIVE and only flagged a copy, so a restart resurrected lost
+                # tracks and the next prune emitted a duplicate TRACK_LOST.)
+                self.state.remove_track(evt.track_id)
             count += 1
 
         return count

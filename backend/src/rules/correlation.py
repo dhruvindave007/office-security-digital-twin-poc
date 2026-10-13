@@ -162,21 +162,26 @@ class CorrelationEngine:
 
             # 3. Correlation on ZONE_ENTERED
             elif event.event_type == "ZONE_ENTERED" and event.zone_id:
-                # Find badge-required doors for this zone
+                # A zone may have several badge-required doors: decide ONCE per entry across all of
+                # them (previously each door was judged separately, so a valid badge at door A still
+                # raised ACCESS_WITHOUT_BADGE for door B).
                 badge_doors = [
                     d
                     for d in self.access_config.doors.values()
                     if d.zone_id == event.zone_id and d.badge_required
                 ]
-
-                for door in badge_doors:
-                    grants = self.pending_grants.get(door.door_id, [])
+                if badge_doors:
                     window_sec = self.policy.correlation.badge_entry_window_seconds
                     tailgate_win_sec = self.policy.correlation.tailgating_window_seconds
+                    door_grants = [
+                        (door, grant)
+                        for door in badge_doors
+                        for grant in self.pending_grants.get(door.door_id, [])
+                    ]
 
-                    # Look for earliest unused grant within badge_entry_window_seconds
+                    # 1) earliest unused grant within the entry window, across all doors
                     matched_grant = None
-                    for grant in grants:
+                    for _door, grant in sorted(door_grants, key=lambda dg: dg[1]["timestamp"]):
                         if grant["used_by_track"] is None:
                             dt_diff = (current_event_dt - grant["timestamp"]).total_seconds()
                             if 0.0 <= dt_diff <= window_sec:
@@ -188,10 +193,10 @@ class CorrelationEngine:
                         matched_grant["used_by_track"] = event.track_id
                         matched_grant["used_at"] = current_event_dt
                     else:
-                        # Check for TAILGATING: a grant at this door used by a different track within tailgating_window
+                        # 2) tailgating: a grant at any of these doors recently used by a DIFFERENT track
                         tailgate_grant = None
                         tailgate_diff = 0.0
-                        for grant in grants:
+                        for _door, grant in door_grants:
                             if (
                                 grant["used_by_track"] is not None
                                 and grant["used_by_track"] != event.track_id
@@ -204,7 +209,6 @@ class CorrelationEngine:
                                     break
 
                         if tailgate_grant is not None:
-                            # Raise TAILGATING
                             badge_name = tailgate_grant["badge_id"]
                             prior_trk = tailgate_grant["used_by_track"]
                             summary = (
@@ -226,10 +230,11 @@ class CorrelationEngine:
                                 )
                             )
                         else:
-                            # Raise ACCESS_WITHOUT_BADGE
+                            # 3) at most one ACCESS_WITHOUT_BADGE per entry
+                            door_ids = ", ".join(d.door_id for d in badge_doors)
                             summary = (
                                 f"Track {event.track_id} entered restricted zone {event.zone_id} "
-                                f"at {door.door_id} without a valid badge grant."
+                                f"without a matching badge grant at {door_ids}."
                             )
                             candidates.append(
                                 IncidentCandidate(

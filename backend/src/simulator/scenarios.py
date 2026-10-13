@@ -1,12 +1,16 @@
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
+import logging
+
 import yaml
 
 try:
     from src.core.paths import _resolve_data_path
 except ImportError:
     from core.paths import _resolve_data_path
+
+logger = logging.getLogger("office_vision.simulator.scenarios")
 
 
 @dataclass
@@ -130,8 +134,9 @@ def list_scenarios(dir_path: Union[str, Path] = "data/scenarios") -> List[Scenar
     for yaml_file in sorted(resolved_dir.glob("*.yaml")):
         try:
             scenarios.append(load_scenario(yaml_file))
-        except Exception:
-            # Skip invalid scenarios or re-raise if desirable; load all valid
+        except Exception as e:
+            # Keep listing the valid ones, but never hide a broken file silently.
+            logger.warning("Skipping invalid scenario file %s: %s", yaml_file, e)
             continue
 
     return scenarios
