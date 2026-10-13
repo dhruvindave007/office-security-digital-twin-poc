@@ -5,9 +5,11 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, Query, Request
 try:
+    from src.core.locks import TWIN_WRITE_LOCK
     from src.rules.policy import parse_utc_timestamp
     from src.twin.history import occupancy_series, position_heatmap, track_path
 except ImportError:
+    from core.locks import TWIN_WRITE_LOCK
     from rules.policy import parse_utc_timestamp
     from twin.history import occupancy_series, position_heatmap, track_path
 
@@ -262,27 +264,28 @@ async def patch_incident(
     body: IncidentPatchRequest,
 ):
     """Update status of an incident."""
-    engine = _get_engine(request)
-    inc = engine.store.get_incident(incident_id)
-    if not inc:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Incident {incident_id} not found",
-        )
+    with TWIN_WRITE_LOCK:
+        engine = _get_engine(request)
+        inc = engine.store.get_incident(incident_id)
+        if not inc:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Incident {incident_id} not found",
+            )
 
-    now_iso = datetime.now(timezone.utc).isoformat()
-    inc.updated_at = now_iso
-    if body.status in ("RESOLVED", "FALSE_POSITIVE") and inc.end_time is None:
-        inc.end_time = now_iso
-    inc.status = body.status
+        now_iso = datetime.now(timezone.utc).isoformat()
+        inc.updated_at = now_iso
+        if body.status in ("RESOLVED", "FALSE_POSITIVE") and inc.end_time is None:
+            inc.end_time = now_iso
+        inc.status = body.status
 
-    engine.store.insert_incident(inc)
+        engine.store.insert_incident(inc)
 
-    rule_engine = getattr(request.app.state, "rule_engine", None)
-    if rule_engine and body.status in ("RESOLVED", "FALSE_POSITIVE"):
-        rule_engine.forget(incident_id)
+        rule_engine = getattr(request.app.state, "rule_engine", None)
+        if rule_engine and body.status in ("RESOLVED", "FALSE_POSITIVE"):
+            rule_engine.forget(incident_id)
 
-    return _row_to_incident_response(inc)
+        return _row_to_incident_response(inc)
 
 
 @router.get("/tracks/{track_id}/path")
