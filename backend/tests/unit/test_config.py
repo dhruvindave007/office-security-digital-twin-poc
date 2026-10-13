@@ -20,7 +20,7 @@ def test_settings_defaults(monkeypatch):
     assert settings.aws_region == "us-east-1"
     assert settings.bedrock_reasoning_model_id == "us.amazon.nova-lite-v1:0"
     assert settings.bedrock_fast_model_id == "us.amazon.nova-micro-v1:0"
-    assert settings.bedrock_multimodal_model_id == "us.amazon.nova-pro-v1:0"
+    assert settings.bedrock_multimodal_model_id == "us.amazon.nova-lite-v1:0"
     assert settings.bedrock_connect_timeout == 10.0
     assert settings.bedrock_read_timeout == 60.0
     assert settings.bedrock_max_retries == 3
