@@ -4,12 +4,14 @@ from typing import List, Optional, Tuple, TYPE_CHECKING
 
 try:
     from src.access.config import AccessConfig
+    from src.core.locks import TWIN_WRITE_LOCK
     from src.rules.policy import parse_utc_timestamp
     from src.twin.engine import generate_uuid7
     from src.twin.models import Incident, TwinEvent
     from src.twin.store import TwinStore
 except ImportError:
     from access.config import AccessConfig
+    from core.locks import TWIN_WRITE_LOCK
     from rules.policy import parse_utc_timestamp
     from twin.engine import generate_uuid7
     from twin.models import Incident, TwinEvent
@@ -69,48 +71,49 @@ class AccessControlService:
         Returns:
             Tuple of (appended TwinEvent, list of newly evaluated Incident objects).
         """
-        normalized_result = result.strip().upper()
-        if normalized_result not in ("GRANTED", "DENIED"):
-            raise ValueError(
-                f"Invalid access result '{result}'. Must be 'GRANTED' or 'DENIED'."
+        with TWIN_WRITE_LOCK:
+            normalized_result = result.strip().upper()
+            if normalized_result not in ("GRANTED", "DENIED"):
+                raise ValueError(
+                    f"Invalid access result '{result}'. Must be 'GRANTED' or 'DENIED'."
+                )
+
+            if door_id not in self.config.doors:
+                raise KeyError(f"Unknown door_id '{door_id}'")
+
+            door = self.config.doors[door_id]
+            event_type = f"ACCESS_{normalized_result}"
+
+            # Normalize timestamp to UTC ISO-8601
+            dt = parse_utc_timestamp(timestamp)
+            normalized_ts = dt.isoformat()
+
+            person_id = self.config.badges.get(badge_id)
+            payload = {
+                "door_id": door_id,
+                "badge_id": badge_id,
+                "result": normalized_result,
+            }
+
+            evt = TwinEvent(
+                event_id=generate_uuid7(),
+                event_type=event_type,
+                timestamp=normalized_ts,
+                track_id=f"badge:{badge_id}",
+                person_id=person_id,
+                camera_id=door.camera_id,
+                zone_id=door.zone_id,
+                confidence=1.0,
+                payload_json=json.dumps(payload),
             )
 
-        if door_id not in self.config.doors:
-            raise KeyError(f"Unknown door_id '{door_id}'")
+            # Append strictly to TwinStore event ledger
+            seq_num = self.store.append_event(evt)
+            evt.sequence_num = seq_num
 
-        door = self.config.doors[door_id]
-        event_type = f"ACCESS_{normalized_result}"
+            # Evaluate against rule engine if provided
+            incidents: List[Incident] = []
+            if self.rule_engine is not None:
+                incidents = self.rule_engine.evaluate([evt])
 
-        # Normalize timestamp to UTC ISO-8601
-        dt = parse_utc_timestamp(timestamp)
-        normalized_ts = dt.isoformat()
-
-        person_id = self.config.badges.get(badge_id)
-        payload = {
-            "door_id": door_id,
-            "badge_id": badge_id,
-            "result": normalized_result,
-        }
-
-        evt = TwinEvent(
-            event_id=generate_uuid7(),
-            event_type=event_type,
-            timestamp=normalized_ts,
-            track_id=f"badge:{badge_id}",
-            person_id=person_id,
-            camera_id=door.camera_id,
-            zone_id=door.zone_id,
-            confidence=1.0,
-            payload_json=json.dumps(payload),
-        )
-
-        # Append strictly to TwinStore event ledger
-        seq_num = self.store.append_event(evt)
-        evt.sequence_num = seq_num
-
-        # Evaluate against rule engine if provided
-        incidents: List[Incident] = []
-        if self.rule_engine is not None:
-            incidents = self.rule_engine.evaluate([evt])
-
-        return evt, incidents
+            return evt, incidents
