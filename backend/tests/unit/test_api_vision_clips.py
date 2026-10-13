@@ -215,3 +215,22 @@ def test_api_failing_factory_server_stays_up(clips_setup):
         # Health endpoint responds 200 OK
         health_res = client.get("/health")
         assert health_res.status_code == 200
+
+
+def test_api_run_clip_unknown_camera_is_422(clips_setup):
+    """A clip whose camera_id is not calibrated is rejected before any background run starts."""
+    clips_dir, video_path = clips_setup
+    bad = {
+        "name": "bad_cam_clip",
+        "video_file": video_path.name,
+        "camera_id": "cam_does_not_exist",
+        "base_time_utc": "2026-01-20T09:30:00Z",
+        "source_note": "test",
+    }
+    (clips_dir / "bad_cam_clip.yaml").write_text(yaml.dump(bad), encoding="utf-8")
+
+    with TestClient(app) as client:
+        res = client.post("/api/vision/clips/bad_cam_clip/run")
+        assert res.status_code == 422
+        assert "cam_does_not_exist" in res.json()["detail"]
+        assert app.state.clip_job_manager.active_run_id is None

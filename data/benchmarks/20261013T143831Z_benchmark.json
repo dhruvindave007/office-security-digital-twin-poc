@@ -1,0 +1,92 @@
+{
+  "created_at_utc": "2026-10-13T14:38:31.874378+00:00",
+  "hardware": {
+    "platform": "Windows-10-10.0.26200-SP0",
+    "processor": "Intel(R) Core(TM) Ultra 7 155H",
+    "python": "3.11.16",
+    "openvino_devices": [
+      "CPU",
+      "GPU",
+      "NPU"
+    ]
+  },
+  "versions": {
+    "ultralytics": "8.4.176",
+    "torch": "2.14.1+cpu",
+    "openvino": "2026.4.1-22982-e213a147257-releases/2026/4",
+    "cv2": "5.0.0"
+  },
+  "clip": {
+    "name": "ljubljana_reception",
+    "video_file": "ljubljana_pedestrian.webm",
+    "process_fps": 5.0,
+    "stride": 5
+  },
+  "frames": {
+    "warmup": 10,
+    "measured_requested": 200
+  },
+  "note": "Detection + tracking only (tracker.update). Twin ingest is measured by run-clip.",
+  "results": [
+    {
+      "config": "torch-cpu",
+      "device": "cpu",
+      "status": "ok",
+      "model": "yolo11n.pt",
+      "model_load_seconds": 3.427,
+      "frames_measured": 200,
+      "track_ms": {
+        "mean": 45.86,
+        "p50": 45.36,
+        "p95": 55.92
+      },
+      "fps": 21.81,
+      "mean_tracked_people_per_frame": 4.59
+    },
+    {
+      "config": "openvino-cpu",
+      "device": "intel:cpu",
+      "status": "ok",
+      "model": "yolo11n_openvino_model",
+      "model_load_seconds": 0.034,
+      "frames_measured": 200,
+      "track_ms": {
+        "mean": 66.63,
+        "p50": 65.32,
+        "p95": 87.16
+      },
+      "fps": 15.01,
+      "mean_tracked_people_per_frame": 4.6
+    },
+    {
+      "config": "openvino-gpu",
+      "device": "intel:gpu",
+      "status": "ok",
+      "model": "yolo11n_openvino_model",
+      "model_load_seconds": 0.088,
+      "frames_measured": 200,
+      "track_ms": {
+        "mean": 15.5,
+        "p50": 15.26,
+        "p95": 18.1
+      },
+      "fps": 64.52,
+      "mean_tracked_people_per_frame": 4.58
+    },
+    {
+      "config": "openvino-npu",
+      "device": "intel:npu",
+      "status": "ok",
+      "model": "yolo11n_openvino_model",
+      "model_load_seconds": 0.095,
+      "frames_measured": 200,
+      "track_ms": {
+        "mean": 45.87,
+        "p50": 45.17,
+        "p95": 59.51
+      },
+      "fps": 21.8,
+      "mean_tracked_people_per_frame": 4.59
+    }
+  ]
+}

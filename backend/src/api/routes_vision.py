@@ -193,6 +193,14 @@ async def run_clip(name: str, request: Request):
             detail=f"Video file '{config.video_file}' for clip '{name}' is missing.",
         )
 
+    clip_runner = getattr(request.app.state, "clip_runner", None)
+    known_cameras = getattr(clip_runner, "camera_nodes", None) or {}
+    if config.camera_id not in known_cameras:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Clip '{name}' references unknown camera_id '{config.camera_id}'.",
+        )
+
     try:
         run_id = job_manager.start(config=config, tracker_factory=tracker_factory)
         return {"run_id": run_id}
