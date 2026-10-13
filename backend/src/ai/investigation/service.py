@@ -12,12 +12,16 @@ from typing import Any, Dict, List, Optional
 
 try:
     from src.ai.errors import BedrockError
+    from src.ai.investigation.claim_check import ClaimChecker
+    from src.ai.investigation.jsonutil import extract_json_object
     from src.ai.investigation.evidence import EvidenceBuilder
     from src.ai.pricing import estimate_cost_usd
     from src.ai.prompts import investigation as prompt
     from src.twin.engine import generate_uuid7
 except ImportError:
     from ai.errors import BedrockError
+    from ai.investigation.claim_check import ClaimChecker
+    from ai.investigation.jsonutil import extract_json_object
     from ai.investigation.evidence import EvidenceBuilder
     from ai.pricing import estimate_cost_usd
     from ai.prompts import investigation as prompt
@@ -37,21 +41,6 @@ class IncidentNotFoundError(KeyError):
 
 class BudgetExceededError(RuntimeError):
     pass
-
-
-def extract_json_object(text: str) -> Optional[Dict[str, Any]]:
-    """Parse the model's JSON object, tolerating a markdown fence or stray prose around it."""
-    cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip())
-    for candidate in (cleaned, (re.search(r"\{.*\}", cleaned, re.S) or [None])[0]):
-        if not candidate:
-            continue
-        try:
-            doc = json.loads(candidate)
-            if isinstance(doc, dict):
-                return doc
-        except (TypeError, ValueError):
-            continue
-    return None
 
 
 def verify_result(result: Optional[Dict[str, Any]], evidence: Dict[str, Any], stop_reason: str) -> Dict[str, Any]:
@@ -80,7 +69,8 @@ def verify_result(result: Optional[Dict[str, Any]], evidence: Dict[str, Any], st
 
 class InvestigationService:
     def __init__(self, bedrock_client, store, evidence_builder: EvidenceBuilder, model_id: str,
-                 max_output_tokens: int = 6000, daily_budget_usd: float = 1.0, effort: Optional[str] = "low"):
+                 max_output_tokens: int = 6000, daily_budget_usd: float = 1.0, effort: Optional[str] = "low",
+                 claim_judge: bool = True):
         self.bedrock = bedrock_client
         self.store = store
         self.evidence_builder = evidence_builder
@@ -88,6 +78,8 @@ class InvestigationService:
         self.max_output_tokens = max_output_tokens
         self.daily_budget_usd = daily_budget_usd
         self.effort = effort
+        self.claim_judge = claim_judge
+        self.claim_checker = ClaimChecker(bedrock_client, model_id, effort=effort)
 
     def spent_today_usd(self) -> float:
         midnight = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
@@ -136,6 +128,24 @@ class InvestigationService:
         result = extract_json_object(response.text)
         verification = verify_result(result, evidence, response.stop_reason)
         cost = estimate_cost_usd(self.model_id, response.usage.input_tokens, response.usage.output_tokens)
+
+        # Claim support: do the cited records actually say what each claim says?
+        if result is not None:
+            self.claim_checker.bedrock = self.bedrock  # same client (tests swap it)
+            try:
+                claims = self.claim_checker.check(result, evidence, use_judge=self.claim_judge)
+            except BedrockError as e:  # judge unavailable: keep the deterministic stage, mark unchecked
+                claims = self.claim_checker.check(result, evidence, use_judge=False)
+                claims["judge"] = {"ran": False, "error": f"{type(e).__name__}: {e}"}
+            judge = claims["judge"]
+            if judge.get("ran"):
+                judge_cost = estimate_cost_usd(self.model_id, judge["input_tokens"], judge["output_tokens"])
+                judge["cost_usd"] = judge_cost
+                if cost is not None and judge_cost is not None:
+                    cost = round(cost + judge_cost, 8)
+            verification["claims"] = claims
+            verification["ids_passed"] = verification["passed"]
+            verification["passed"] = verification["passed"] and claims["passed"]
         record.update(
             status="COMPLETED" if result is not None else "INVALID_OUTPUT",
             result_json=json.dumps(result) if result is not None else None,

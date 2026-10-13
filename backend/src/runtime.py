@@ -84,6 +84,7 @@ def make_investigation_service(settings: Any, store: Any, policy: Any = None, ac
         max_output_tokens=settings.investigation_max_output_tokens,
         daily_budget_usd=settings.investigation_daily_budget_usd,
         effort=settings.investigation_effort,
+        claim_judge=settings.investigation_claim_judge,
     )
 
 

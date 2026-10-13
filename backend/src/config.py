@@ -40,6 +40,8 @@ class Settings(BaseSettings):
     # default "medium"; thinking disabled was cheapest but failed the identity-judgment check.
     investigation_effort: str = "low"
     investigation_max_output_tokens: int = 6000
+    # Second, cheap pass that checks every claim against the records it cites (see claim_check.py).
+    investigation_claim_judge: bool = True
     investigation_daily_budget_usd: float = 1.0
     bedrock_connect_timeout: float = 10.0
     bedrock_read_timeout: float = 60.0
