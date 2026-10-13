@@ -18,6 +18,7 @@ try:
     from src.api.routes_twin import router as twin_router
     from src.api.routes_vision import router as vision_router
     from src.config import get_settings
+    from src.core.locks import TWIN_WRITE_LOCK
     from src.rules.correlation import CorrelationEngine
     from src.rules.engine import IncidentRuleEngine
     from src.rules.policy import load_access_policy
@@ -37,6 +38,7 @@ except ImportError:
     from api.routes_twin import router as twin_router
     from api.routes_vision import router as vision_router
     from config import get_settings
+    from core.locks import TWIN_WRITE_LOCK
     from rules.correlation import CorrelationEngine
     from rules.engine import IncidentRuleEngine
     from rules.policy import load_access_policy
@@ -51,10 +53,11 @@ logger = logging.getLogger("office_vision.main")
 
 def _prune_once(twin_engine, rule_engine, now_iso: str):
     """Execute a single prune cycle and evaluate lost track events against rules."""
-    lost_events = twin_engine.prune_tracks(now_iso)
-    if lost_events and rule_engine:
-        return rule_engine.evaluate(lost_events)
-    return []
+    with TWIN_WRITE_LOCK:
+        lost_events = twin_engine.prune_tracks(now_iso)
+        if lost_events and rule_engine:
+            return rule_engine.evaluate(lost_events)
+        return []
 
 
 @asynccontextmanager
