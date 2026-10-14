@@ -1,0 +1,6 @@
+name: eval_multi_hop_transit
+description: "One track is seen on the reception camera, then on the server room camera 3 s later (topology minimum 9 s via the workspace)."
+base_time_utc: "2026-01-16T15:00:00Z"
+steps:
+  - {t: 0.0, camera_id: cam_reception_01, track_id: sim_e5, person_id: null, floor: [5.0, 5.0], confidence: 0.9}
+  - {t: 3.0, camera_id: cam_server_01, track_id: sim_e5, person_id: null, floor: [35.0, 5.0], confidence: 0.9}

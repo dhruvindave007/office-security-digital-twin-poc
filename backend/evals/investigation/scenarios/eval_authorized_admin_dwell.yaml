@@ -1,0 +1,18 @@
+name: eval_authorized_admin_dwell
+description: "person_it_admin_01 badges in to the server room and stays about 6 minutes."
+base_time_utc: "2026-01-16T16:00:00Z"
+steps:
+  - {t: 0.0, kind: access, door_id: door_server_01, badge_id: badge_0001, result: GRANTED}
+  - {t: 2.0, camera_id: cam_server_01, track_id: sim_e6, person_id: person_it_admin_01, floor: [35.0, 5.0], confidence: 0.9}
+  - {t: 32.0, camera_id: cam_server_01, track_id: sim_e6, person_id: person_it_admin_01, floor: [35.0, 5.0], confidence: 0.9}
+  - {t: 62.0, camera_id: cam_server_01, track_id: sim_e6, person_id: person_it_admin_01, floor: [35.0, 5.0], confidence: 0.9}
+  - {t: 92.0, camera_id: cam_server_01, track_id: sim_e6, person_id: person_it_admin_01, floor: [35.0, 5.0], confidence: 0.9}
+  - {t: 122.0, camera_id: cam_server_01, track_id: sim_e6, person_id: person_it_admin_01, floor: [35.0, 5.0], confidence: 0.9}
+  - {t: 152.0, camera_id: cam_server_01, track_id: sim_e6, person_id: person_it_admin_01, floor: [35.0, 5.0], confidence: 0.9}
+  - {t: 182.0, camera_id: cam_server_01, track_id: sim_e6, person_id: person_it_admin_01, floor: [35.0, 5.0], confidence: 0.9}
+  - {t: 212.0, camera_id: cam_server_01, track_id: sim_e6, person_id: person_it_admin_01, floor: [35.0, 5.0], confidence: 0.9}
+  - {t: 242.0, camera_id: cam_server_01, track_id: sim_e6, person_id: person_it_admin_01, floor: [35.0, 5.0], confidence: 0.9}
+  - {t: 272.0, camera_id: cam_server_01, track_id: sim_e6, person_id: person_it_admin_01, floor: [35.0, 5.0], confidence: 0.9}
+  - {t: 302.0, camera_id: cam_server_01, track_id: sim_e6, person_id: person_it_admin_01, floor: [35.0, 5.0], confidence: 0.9}
+  - {t: 332.0, camera_id: cam_server_01, track_id: sim_e6, person_id: person_it_admin_01, floor: [35.0, 5.0], confidence: 0.9}
+  - {t: 362.0, camera_id: cam_server_01, track_id: sim_e6, person_id: person_it_admin_01, floor: [35.0, 5.0], confidence: 0.9}

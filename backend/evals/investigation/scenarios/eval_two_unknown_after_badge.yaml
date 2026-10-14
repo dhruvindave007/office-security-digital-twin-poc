@@ -1,0 +1,7 @@
+name: eval_two_unknown_after_badge
+description: "badge_0002 is granted, then two unlabelled tracks enter the server room 1 s apart."
+base_time_utc: "2026-01-16T11:00:00Z"
+steps:
+  - {t: 0.0, kind: access, door_id: door_server_01, badge_id: badge_0002, result: GRANTED}
+  - {t: 2.0, camera_id: cam_server_01, track_id: sim_e2_a, person_id: null, floor: [35.0, 5.0], confidence: 0.9}
+  - {t: 3.0, camera_id: cam_server_01, track_id: sim_e2_b, person_id: null, floor: [36.0, 5.5], confidence: 0.85}

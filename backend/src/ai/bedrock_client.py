@@ -9,7 +9,17 @@ from botocore.exceptions import (
     NoCredentialsError,
     PartialCredentialsError,
     ReadTimeoutError,
+    SSOError,
+    SSOTokenLoadError,
+    TokenRetrievalError,
+    UnauthorizedSSOTokenError,
 )
+
+# Expired/missing AWS SSO sign-in surfaces as these (not NoCredentialsError); treat them as a
+# credentials problem so callers can tell the user to sign in again instead of "unexpected error".
+_CREDENTIAL_ERRORS = (NoCredentialsError, PartialCredentialsError, SSOError, SSOTokenLoadError,
+                      TokenRetrievalError, UnauthorizedSSOTokenError)
+SIGN_IN_HINT = "AWS sign-in missing or expired. Run scripts/aws_sso_login.py and approve in the browser."
 from src.ai.errors import (
     BedrockAccessDeniedError,
     BedrockCredentialsError,
@@ -120,9 +130,9 @@ class BedrockClient:
                 status="success",
             )
             return parsed
-        except (NoCredentialsError, PartialCredentialsError) as e:
+        except _CREDENTIAL_ERRORS as e:
             self._log_error(active_model, start_time, "credentials_error")
-            raise BedrockCredentialsError("AWS credentials missing or incomplete.") from e
+            raise BedrockCredentialsError(SIGN_IN_HINT) from e
         except (ConnectTimeoutError, ReadTimeoutError) as e:
             self._log_error(active_model, start_time, "timeout_error")
             raise BedrockTimeoutError(f"Bedrock request timed out: {e}") from e
@@ -168,9 +178,9 @@ class BedrockClient:
                 status="stream_opened",
             )
             return parse_converse_stream_events(stream, active_model, self.region_name, start_time)
-        except (NoCredentialsError, PartialCredentialsError) as e:
+        except _CREDENTIAL_ERRORS as e:
             self._log_error(active_model, start_time, "credentials_error")
-            raise BedrockCredentialsError("AWS credentials missing or incomplete.") from e
+            raise BedrockCredentialsError(SIGN_IN_HINT) from e
         except (ConnectTimeoutError, ReadTimeoutError) as e:
             self._log_error(active_model, start_time, "timeout_error")
             raise BedrockTimeoutError(f"Bedrock stream connection timed out: {e}") from e

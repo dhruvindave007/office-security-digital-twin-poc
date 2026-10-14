@@ -1,0 +1,7 @@
+name: eval_admin_after_hours
+description: "A track labelled person_it_admin_01 works in the open workspace at 21:00 UTC."
+base_time_utc: "2026-01-16T21:00:00Z"
+steps:
+  - {t: 0.0, camera_id: cam_workspace_01, track_id: sim_e3, person_id: person_it_admin_01, floor: [20.0, 5.0], confidence: 0.9}
+  - {t: 30.0, camera_id: cam_workspace_01, track_id: sim_e3, person_id: person_it_admin_01, floor: [21.0, 6.0], confidence: 0.9}
+  - {t: 60.0, camera_id: cam_workspace_01, track_id: sim_e3, person_id: person_it_admin_01, floor: [20.5, 5.5], confidence: 0.9}
