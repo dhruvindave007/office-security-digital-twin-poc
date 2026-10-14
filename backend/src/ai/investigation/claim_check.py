@@ -127,6 +127,7 @@ class ClaimChecker:
             records[inc["incident_id"]] = inc
         payload = [{"claim_id": c["claim_id"], "kind": c["kind"], "claim": c["text"],
                     **({"time": c["time"]} if c.get("time") else {}),
+                    **({"auto_check_notes": c["deterministic_issues"]} if c.get("deterministic_issues") else {}),
                     "cited_records": [records[i] for i in c["event_ids"] if i in records]} for c in claims]
         is_claude = "anthropic" in (self.model_id or "")
         response = self.bedrock.converse(
@@ -162,10 +163,12 @@ class ClaimChecker:
         out_claims = []
         for c in claims:
             j = verdicts.get(c["claim_id"])
-            if c["deterministic_issues"]:
-                final = "unsupported"
-            elif j:
+            if j:
+                # The judge sees the strict check's notes and decides. (Making them automatic fails
+                # produced false alarms on absence claims, comparisons and policy facts.)
                 final = j["verdict"]
+            elif c["deterministic_issues"]:
+                final = "unsupported"  # no judge available: the strict check is all we have
             else:
                 final = "unchecked"  # judge did not run or gave no verdict for this claim
             out_claims.append({"claim_id": c["claim_id"], "kind": c["kind"], "text": c["text"],

@@ -71,3 +71,6 @@ Thumbs.db
 data/datasets/
 **/data/benchmarks/*.tmp
 **/data/clips/out/
+
+# Eval runs (local; curated summaries are committed under docs/evals/)
+backend/evals/investigation/results/
