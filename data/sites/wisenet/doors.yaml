@@ -1,0 +1,118 @@
+version: 1
+doors:
+- door_id: door_d1
+  name: Door d1
+  zone_id: zone_corridor
+  camera_id: cam_2
+  badge_required: false
+  connects:
+  - zone_corridor
+  - outside (stairwell)
+  jambs_m:
+  - - 3.779
+    - 4.072
+  - - 3.779
+    - 5.602
+  seen_by:
+  - cam_1
+  - cam_2
+- door_id: door_d2
+  name: Door d2
+  zone_id: zone_workroom
+  camera_id: cam_5
+  badge_required: false
+  connects:
+  - zone_corridor
+  - zone_workroom
+  jambs_m:
+  - - 5.599
+    - 5.822
+  - - 7.129
+    - 5.822
+  seen_by:
+  - cam_1
+  - cam_2
+  - cam_4
+  - cam_5
+- door_id: door_d3
+  name: Door d3
+  zone_id: zone_workroom
+  camera_id: cam_5
+  badge_required: false
+  connects:
+  - zone_corridor
+  - zone_workroom
+  jambs_m:
+  - - 14.123
+    - 5.822
+  - - 15.653
+    - 5.822
+  seen_by:
+  - cam_2
+  - cam_5
+- door_id: door_d4
+  name: Door d4
+  zone_id: zone_vision_lab
+  camera_id: cam_3
+  badge_required: true
+  connects:
+  - zone_corridor
+  - zone_vision_lab
+  jambs_m:
+  - - 25.258
+    - 5.822
+  - - 26.788
+    - 5.822
+  seen_by:
+  - cam_2
+  - cam_3
+- door_id: door_d5
+  name: Door d5
+  zone_id: zone_print_room
+  camera_id: cam_6
+  badge_required: false
+  connects:
+  - zone_workroom
+  - zone_print_room
+  jambs_m:
+  - - 2.097
+    - 5.882
+  - - 2.097
+    - 6.912
+  seen_by:
+  - cam_4
+  - cam_6
+- door_id: door_d6
+  name: Door d6
+  zone_id: zone_it_annex
+  camera_id: cam_4
+  badge_required: false
+  connects:
+  - zone_workroom
+  - zone_it_annex
+  jambs_m:
+  - - 2.097
+    - 8.782
+  - - 2.097
+    - 9.812
+  seen_by:
+  - cam_4
+- door_id: door_d7
+  name: Door d7
+  zone_id: zone_office_307
+  camera_id: cam_2
+  badge_required: false
+  connects:
+  - zone_corridor
+  - zone_office_307
+  jambs_m:
+  - - 26.312
+    - 4.042
+  - - 27.342
+    - 4.042
+  seen_by:
+  - cam_2
+badges:
+  badge_1001: person_staff_a
+  badge_1002: person_staff_b
+  badge_1003: person_lab_lead
