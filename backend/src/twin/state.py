@@ -75,6 +75,15 @@ class TwinState:
 
             return old_zone, zone_id
 
+    def assign_person(self, track_id: str, person_id: str) -> bool:
+        """Attach an identity learned from another source (e.g. the badge that admitted this track)."""
+        with self._lock:
+            entity = self._active_tracks.get(track_id)
+            if entity is None or entity.person_id:
+                return False
+            entity.person_id = person_id
+            return True
+
     def remove_track(self, track_id: str) -> Optional[TrackedEntity]:
         """Remove a track (e.g. replaying TRACK_LOST) and release its zone occupancy."""
         with self._lock:

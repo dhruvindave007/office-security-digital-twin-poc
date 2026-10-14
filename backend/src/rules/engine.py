@@ -163,7 +163,11 @@ class IncidentRuleEngine:
 
         for event in events:
             # 1. UNAUTHORIZED_ENTRY
-            if event.event_type == "ZONE_ENTERED" and event.zone_id:
+            # An unidentified person entering a room with a badge door is decided by badge
+            # correlation (they may be admitted by a valid badge a moment later); see below.
+            deferred = (event.person_id is None and self.correlation is not None
+                        and self.correlation.handles_entry(event.zone_id))
+            if event.event_type == "ZONE_ENTERED" and event.zone_id and not deferred:
                 if event.zone_id in self.policy.restricted_zones:
                     cfg = self.policy.restricted_zones[event.zone_id]
                     if event.person_id is None or event.person_id not in cfg.authorized_person_ids:
@@ -264,6 +268,31 @@ class IncidentRuleEngine:
         # 5. Correlation rules evaluation
         if self.correlation is not None:
             candidates = self.correlation.evaluate(events)
+            # Badge-admitted entries: attach the badge holder's identity, then apply the allow list.
+            for att in self.correlation.attributions:
+                entry, grant = att["entry"], att["grant"]
+                person = grant.get("person_id")
+                if person:
+                    self.state.assign_person(entry.track_id, person)
+                cfg = self.policy.restricted_zones.get(entry.zone_id)
+                if cfg is not None and (person is None or person not in cfg.authorized_person_ids):
+                    self._raise_or_append(
+                        incident_type="UNAUTHORIZED_ENTRY", severity="HIGH",
+                        dedupe_key=("UNAUTHORIZED_ENTRY", entry.zone_id, entry.track_id), event=entry,
+                        zone_id=entry.zone_id, track_id=entry.track_id, person_id=person,
+                        summary=(f"Track {entry.track_id} entered restricted zone {entry.zone_id} on badge "
+                                 f"{grant.get('badge_id')} (person: {person or 'unknown'}), who is not on its authorized list."),
+                        changed=changed, extra_event_ids=[grant["event_id"]])
+            # Unidentified entries with no matching badge are also unauthorized for a restricted room.
+            for cand in candidates:
+                if (cand.incident_type in ("ACCESS_WITHOUT_BADGE", "TAILGATING") and cand.person_id is None
+                        and cand.zone_id in self.policy.restricted_zones):
+                    self._raise_or_append(
+                        incident_type="UNAUTHORIZED_ENTRY", severity="HIGH",
+                        dedupe_key=("UNAUTHORIZED_ENTRY", cand.zone_id, cand.track_id), event=cand.event,
+                        zone_id=cand.zone_id, track_id=cand.track_id, person_id=None,
+                        summary=f"Track {cand.track_id} (person: unknown) entered restricted zone {cand.zone_id}.",
+                        changed=changed)
             for cand in candidates:
                 self._raise_or_append(
                     incident_type=cand.incident_type,

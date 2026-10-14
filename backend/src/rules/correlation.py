@@ -59,6 +59,9 @@ class CorrelationEngine:
         self.entry_filter = entry_filter
         # Entries waiting up to grant_after_entry_tolerance_seconds for a late badge grant.
         self.pending_entries: List[Dict[str, Any]] = []
+        # Badge -> track matches made during the last evaluate() call: the rule engine attaches the
+        # badge holder's identity to the admitted track and checks it against the room's allow list.
+        self.attributions: List[Dict[str, Any]] = []
         self.access_config = access_config
         self.topology = topology
         self.store = store
@@ -68,6 +71,10 @@ class CorrelationEngine:
         self.pending_grants: Dict[str, List[Dict[str, Any]]] = {}
         # last_seen[track_id] -> (camera_id, datetime_utc, event_id)
         self.last_seen: Dict[str, Tuple[str, datetime, str]] = {}
+
+    def handles_entry(self, zone_id: Optional[str]) -> bool:
+        """True when entries into this zone are decided by badge correlation (it has a badge door)."""
+        return any(d.zone_id == zone_id and d.badge_required for d in self.access_config.doors.values())
 
     def _sweep_expired_grants(
         self, current_event_dt: datetime, current_event: TwinEvent
@@ -192,6 +199,7 @@ class CorrelationEngine:
     def evaluate(self, events: List[TwinEvent]) -> List[IncidentCandidate]:
         """Evaluate events against correlation rules and return candidate incidents."""
         candidates: List[IncidentCandidate] = []
+        self.attributions = []
 
         for event in events:
             current_event_dt = parse_utc_timestamp(event.timestamp)
@@ -247,6 +255,7 @@ class CorrelationEngine:
                         for pe in sorted(self.pending_entries, key=lambda e: e["dt"]):
                             if pe["event"].zone_id == door.zone_id and 0.0 <= (current_event_dt - pe["dt"]).total_seconds() <= tol:
                                 grant_record["used_by_track"] = pe["event"].track_id
+                                self.attributions.append({"entry": pe["event"], "grant": grant_record})
                                 grant_record["used_at"] = pe["dt"]
                                 self.pending_entries.remove(pe)
                                 break
@@ -282,6 +291,7 @@ class CorrelationEngine:
                     if matched_grant is not None:
                         # Legitimate badge-admitted entry
                         matched_grant["used_by_track"] = event.track_id
+                        self.attributions.append({"entry": event, "grant": matched_grant})
                         matched_grant["used_at"] = current_event_dt
                     else:
                         tol = self.policy.correlation.grant_after_entry_tolerance_seconds
