@@ -74,3 +74,8 @@ data/datasets/
 
 # Eval runs (local; curated summaries are committed under docs/evals/)
 backend/evals/investigation/results/
+
+# Site run artefacts (large; regenerate with evals/site/run_wisenet.py)
+data/sites/*/runs/*.json
+data/sites/*/runs/*.mp4
+!data/sites/*/runs/validation.json

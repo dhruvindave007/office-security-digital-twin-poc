@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 import json
 import logging
-from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
+from typing import Any, Callable, Dict, List, Optional, Tuple, TYPE_CHECKING
 
 try:
     from src.access.config import AccessConfig, Door
@@ -51,8 +51,14 @@ class CorrelationEngine:
         access_config: AccessConfig,
         topology: "TopologyService",
         store: TwinStore,
+        entry_filter: Optional[Callable[[TwinEvent], bool]] = None,
     ):
         self.policy = policy
+        # Optional site hook: return False for ZONE_ENTERED events that are not real door entries
+        # (e.g. a track that first appears in the middle of a room after an occlusion).
+        self.entry_filter = entry_filter
+        # Entries waiting up to grant_after_entry_tolerance_seconds for a late badge grant.
+        self.pending_entries: List[Dict[str, Any]] = []
         self.access_config = access_config
         self.topology = topology
         self.store = store
@@ -113,6 +119,76 @@ class CorrelationEngine:
 
         return expired_candidates
 
+    def _unmatched_entry(self, event: TwinEvent, current_event_dt: datetime, badge_doors) -> IncidentCandidate:
+        """Decide an entry that no badge grant matched: TAILGATING if a recently used grant exists, else ACCESS_WITHOUT_BADGE."""
+        tailgate_win_sec = self.policy.correlation.tailgating_window_seconds
+        door_grants = [(door, grant) for door in badge_doors for grant in self.pending_grants.get(door.door_id, [])]
+        # 2) tailgating: a grant at any of these doors recently used by a DIFFERENT track
+        tailgate_grant = None
+        tailgate_diff = 0.0
+        for _door, grant in door_grants:
+            if (
+                grant["used_by_track"] is not None
+                and grant["used_by_track"] != event.track_id
+                and grant["used_at"] is not None
+            ):
+                diff = (current_event_dt - grant["used_at"]).total_seconds()
+                if 0.0 <= diff <= tailgate_win_sec:
+                    tailgate_grant = grant
+                    tailgate_diff = diff
+                    break
+
+        if tailgate_grant is not None:
+            badge_name = tailgate_grant["badge_id"]
+            prior_trk = tailgate_grant["used_by_track"]
+            # Spell out both reference times: an earlier wording ("2.0 s after badge X
+            # admitted track Y") was misread by the AI as 2.0 s after the badge grant.
+            summary = (
+                f"Track {event.track_id} entered {event.zone_id} at "
+                f"{current_event_dt.strftime('%H:%M:%S')}, {tailgate_diff:.1f} s after track "
+                f"{prior_trk} entered; {prior_trk} was admitted by badge {badge_name} granted at "
+                f"{tailgate_grant['timestamp'].strftime('%H:%M:%S')}. No badge grant matched "
+                f"track {event.track_id}."
+            )
+            return (
+                IncidentCandidate(
+                    incident_type="TAILGATING",
+                    severity="HIGH",
+                    dedupe_key=("TAILGATING", event.zone_id, event.track_id),
+                    event=event,
+                    zone_id=event.zone_id,
+                    track_id=event.track_id,
+                    person_id=event.person_id,
+                    summary=summary,
+                    extra_event_ids=[tailgate_grant["event_id"]],
+                )
+            )
+        else:
+            # 3) at most one ACCESS_WITHOUT_BADGE per entry
+            door_ids = ", ".join(d.door_id for d in badge_doors)
+            summary = (
+                f"Track {event.track_id} entered restricted zone {event.zone_id} "
+                f"without a matching badge grant at {door_ids}."
+            )
+            return (
+                IncidentCandidate(
+                    incident_type="ACCESS_WITHOUT_BADGE",
+                    severity="MEDIUM",
+                    dedupe_key=(
+                        "ACCESS_WITHOUT_BADGE",
+                        event.zone_id,
+                        event.track_id,
+                    ),
+                    event=event,
+                    zone_id=event.zone_id,
+                    track_id=event.track_id,
+                    person_id=event.person_id,
+                    summary=summary,
+                    extra_event_ids=[],
+                )
+            )
+
+
     def evaluate(self, events: List[TwinEvent]) -> List[IncidentCandidate]:
         """Evaluate events against correlation rules and return candidate incidents."""
         candidates: List[IncidentCandidate] = []
@@ -123,6 +199,14 @@ class CorrelationEngine:
             # 1. Sweep expired grants on EVERY event processed
             sweep_candidates = self._sweep_expired_grants(current_event_dt, event)
             candidates.extend(sweep_candidates)
+            tol = self.policy.correlation.grant_after_entry_tolerance_seconds
+            still = []
+            for pe in self.pending_entries:
+                if (current_event_dt - pe["dt"]).total_seconds() > tol:
+                    candidates.append(self._unmatched_entry(pe["event"], pe["dt"], pe["badge_doors"]))
+                else:
+                    still.append(pe)
+            self.pending_entries = still
 
             # 2. Bookkeeping: ACCESS_GRANTED
             if event.event_type == "ACCESS_GRANTED":
@@ -159,9 +243,16 @@ class CorrelationEngine:
                             "grant_event": event,
                         }
                         self.pending_grants.setdefault(door_id, []).append(grant_record)
+                        tol = self.policy.correlation.grant_after_entry_tolerance_seconds
+                        for pe in sorted(self.pending_entries, key=lambda e: e["dt"]):
+                            if pe["event"].zone_id == door.zone_id and 0.0 <= (current_event_dt - pe["dt"]).total_seconds() <= tol:
+                                grant_record["used_by_track"] = pe["event"].track_id
+                                grant_record["used_at"] = pe["dt"]
+                                self.pending_entries.remove(pe)
+                                break
 
             # 3. Correlation on ZONE_ENTERED
-            elif event.event_type == "ZONE_ENTERED" and event.zone_id:
+            elif event.event_type == "ZONE_ENTERED" and event.zone_id and (self.entry_filter is None or self.entry_filter(event)):
                 # A zone may have several badge-required doors: decide ONCE per entry across all of
                 # them (previously each door was judged separately, so a valid badge at door A still
                 # raised ACCESS_WITHOUT_BADGE for door B).
@@ -193,70 +284,13 @@ class CorrelationEngine:
                         matched_grant["used_by_track"] = event.track_id
                         matched_grant["used_at"] = current_event_dt
                     else:
-                        # 2) tailgating: a grant at any of these doors recently used by a DIFFERENT track
-                        tailgate_grant = None
-                        tailgate_diff = 0.0
-                        for _door, grant in door_grants:
-                            if (
-                                grant["used_by_track"] is not None
-                                and grant["used_by_track"] != event.track_id
-                                and grant["used_at"] is not None
-                            ):
-                                diff = (current_event_dt - grant["used_at"]).total_seconds()
-                                if 0.0 <= diff <= tailgate_win_sec:
-                                    tailgate_grant = grant
-                                    tailgate_diff = diff
-                                    break
-
-                        if tailgate_grant is not None:
-                            badge_name = tailgate_grant["badge_id"]
-                            prior_trk = tailgate_grant["used_by_track"]
-                            # Spell out both reference times: an earlier wording ("2.0 s after badge X
-                            # admitted track Y") was misread by the AI as 2.0 s after the badge grant.
-                            summary = (
-                                f"Track {event.track_id} entered {event.zone_id} at "
-                                f"{current_event_dt.strftime('%H:%M:%S')}, {tailgate_diff:.1f} s after track "
-                                f"{prior_trk} entered; {prior_trk} was admitted by badge {badge_name} granted at "
-                                f"{tailgate_grant['timestamp'].strftime('%H:%M:%S')}. No badge grant matched "
-                                f"track {event.track_id}."
-                            )
-                            candidates.append(
-                                IncidentCandidate(
-                                    incident_type="TAILGATING",
-                                    severity="HIGH",
-                                    dedupe_key=("TAILGATING", event.zone_id, event.track_id),
-                                    event=event,
-                                    zone_id=event.zone_id,
-                                    track_id=event.track_id,
-                                    person_id=event.person_id,
-                                    summary=summary,
-                                    extra_event_ids=[tailgate_grant["event_id"]],
-                                )
-                            )
+                        tol = self.policy.correlation.grant_after_entry_tolerance_seconds
+                        if tol > 0:
+                            # Cameras often see a person at the door a moment BEFORE the badge event is
+                            # logged; wait up to `tol` seconds for a late grant before deciding.
+                            self.pending_entries.append({"event": event, "dt": current_event_dt, "badge_doors": badge_doors})
                         else:
-                            # 3) at most one ACCESS_WITHOUT_BADGE per entry
-                            door_ids = ", ".join(d.door_id for d in badge_doors)
-                            summary = (
-                                f"Track {event.track_id} entered restricted zone {event.zone_id} "
-                                f"without a matching badge grant at {door_ids}."
-                            )
-                            candidates.append(
-                                IncidentCandidate(
-                                    incident_type="ACCESS_WITHOUT_BADGE",
-                                    severity="MEDIUM",
-                                    dedupe_key=(
-                                        "ACCESS_WITHOUT_BADGE",
-                                        event.zone_id,
-                                        event.track_id,
-                                    ),
-                                    event=event,
-                                    zone_id=event.zone_id,
-                                    track_id=event.track_id,
-                                    person_id=event.person_id,
-                                    summary=summary,
-                                    extra_event_ids=[],
-                                )
-                            )
+                            candidates.append(self._unmatched_entry(event, current_event_dt, badge_doors))
 
             # 4. Correlation on PERSON_DETECTED (Topology Feasibility)
             elif event.event_type == "PERSON_DETECTED" and event.camera_id:

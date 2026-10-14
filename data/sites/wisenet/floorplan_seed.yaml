@@ -1,0 +1,451 @@
+facility:
+  name: WiseNET I3M building, floor R+3 (internal validation only, CC BY-NC-SA 4.0)
+  width_m: 34.0
+  height_m: 13.5
+  coordinate_system: metric_meters (IFC plan coordinates)
+zones:
+- zone_id: zone_corridor
+  name: Corridor R+3
+  zone_type: corridor
+  security_level: 1
+  max_occupancy: 20
+  geometry_version: 1
+  vertices:
+  - vertex_order: 0
+    x: 3.884
+    y: 5.637
+  - vertex_order: 1
+    x: 3.884
+    y: 5.637
+  - vertex_order: 2
+    x: 3.884
+    y: 5.637
+  - vertex_order: 3
+    x: 3.884
+    y: 5.637
+  - vertex_order: 4
+    x: 3.884
+    y: 5.637
+  - vertex_order: 5
+    x: 16.798
+    y: 5.637
+  - vertex_order: 6
+    x: 16.798
+    y: 5.637
+  - vertex_order: 7
+    x: 18.985
+    y: 5.637
+  - vertex_order: 8
+    x: 19.07
+    y: 5.637
+  - vertex_order: 9
+    x: 20.26
+    y: 5.637
+  - vertex_order: 10
+    x: 24.823
+    y: 5.637
+  - vertex_order: 11
+    x: 32.285
+    y: 5.637
+  - vertex_order: 12
+    x: 32.548
+    y: 5.637
+  - vertex_order: 13
+    x: 32.548
+    y: 5.637
+  - vertex_order: 14
+    x: 32.548
+    y: 5.637
+  - vertex_order: 15
+    x: 32.548
+    y: 4.037
+  - vertex_order: 16
+    x: 32.548
+    y: 4.037
+  - vertex_order: 17
+    x: 32.548
+    y: 4.037
+  - vertex_order: 18
+    x: 32.548
+    y: 4.037
+  - vertex_order: 19
+    x: 32.548
+    y: 4.037
+  - vertex_order: 20
+    x: 3.884
+    y: 4.037
+  - vertex_order: 21
+    x: 3.884
+    y: 4.037
+  - vertex_order: 22
+    x: 3.884
+    y: 4.037
+- zone_id: zone_workroom
+  name: Computer workroom (303)
+  zone_type: workspace
+  security_level: 2
+  max_occupancy: 30
+  geometry_version: 1
+  vertices:
+  - vertex_order: 0
+    x: 2.202
+    y: 5.817
+  - vertex_order: 1
+    x: 2.202
+    y: 5.817
+  - vertex_order: 2
+    x: 2.202
+    y: 5.817
+  - vertex_order: 3
+    x: 2.202
+    y: 5.817
+  - vertex_order: 4
+    x: 2.202
+    y: 5.817
+  - vertex_order: 5
+    x: 2.202
+    y: 5.817
+  - vertex_order: 6
+    x: 2.202
+    y: 12.686
+  - vertex_order: 7
+    x: 2.202
+    y: 12.686
+  - vertex_order: 8
+    x: 2.202
+    y: 12.686
+  - vertex_order: 9
+    x: 16.698
+    y: 12.686
+  - vertex_order: 10
+    x: 16.698
+    y: 12.686
+  - vertex_order: 11
+    x: 16.698
+    y: 12.686
+  - vertex_order: 12
+    x: 16.698
+    y: 12.686
+  - vertex_order: 13
+    x: 16.698
+    y: 12.686
+  - vertex_order: 14
+    x: 16.698
+    y: 12.686
+  - vertex_order: 15
+    x: 16.698
+    y: 5.817
+  - vertex_order: 16
+    x: 16.698
+    y: 5.817
+  - vertex_order: 17
+    x: 16.698
+    y: 5.817
+- zone_id: zone_vision_lab
+  name: Vision lab (305)
+  zone_type: secure
+  security_level: 4
+  max_occupancy: 6
+  geometry_version: 1
+  vertices:
+  - vertex_order: 0
+    x: 24.873
+    y: 5.817
+  - vertex_order: 1
+    x: 24.873
+    y: 5.817
+  - vertex_order: 2
+    x: 24.873
+    y: 5.817
+  - vertex_order: 3
+    x: 24.873
+    y: 5.817
+  - vertex_order: 4
+    x: 24.873
+    y: 12.686
+  - vertex_order: 5
+    x: 24.873
+    y: 12.686
+  - vertex_order: 6
+    x: 24.873
+    y: 12.686
+  - vertex_order: 7
+    x: 24.873
+    y: 12.686
+  - vertex_order: 8
+    x: 32.548
+    y: 12.686
+  - vertex_order: 9
+    x: 32.548
+    y: 12.686
+  - vertex_order: 10
+    x: 32.548
+    y: 12.686
+  - vertex_order: 11
+    x: 32.548
+    y: 12.686
+  - vertex_order: 12
+    x: 32.548
+    y: 12.686
+  - vertex_order: 13
+    x: 32.548
+    y: 12.686
+  - vertex_order: 14
+    x: 32.548
+    y: 6.267
+  - vertex_order: 15
+    x: 32.548
+    y: 6.267
+  - vertex_order: 16
+    x: 32.548
+    y: 6.267
+  - vertex_order: 17
+    x: 32.249
+    y: 6.267
+  - vertex_order: 18
+    x: 32.249
+    y: 6.267
+  - vertex_order: 19
+    x: 32.249
+    y: 6.267
+  - vertex_order: 20
+    x: 32.248
+    y: 6.267
+  - vertex_order: 21
+    x: 32.248
+    y: 6.267
+  - vertex_order: 22
+    x: 32.248
+    y: 6.267
+  - vertex_order: 23
+    x: 32.248
+    y: 6.267
+  - vertex_order: 24
+    x: 32.248
+    y: 6.267
+  - vertex_order: 25
+    x: 32.248
+    y: 6.267
+  - vertex_order: 26
+    x: 32.248
+    y: 6.266
+  - vertex_order: 27
+    x: 32.248
+    y: 6.266
+  - vertex_order: 28
+    x: 32.248
+    y: 6.266
+  - vertex_order: 29
+    x: 32.248
+    y: 6.266
+  - vertex_order: 30
+    x: 32.248
+    y: 6.266
+  - vertex_order: 31
+    x: 32.248
+    y: 6.266
+  - vertex_order: 32
+    x: 32.248
+    y: 6.266
+  - vertex_order: 33
+    x: 32.248
+    y: 6.266
+  - vertex_order: 34
+    x: 32.248
+    y: 5.817
+  - vertex_order: 35
+    x: 32.248
+    y: 5.817
+  - vertex_order: 36
+    x: 32.248
+    y: 5.817
+- zone_id: zone_print_room
+  name: Print room (301)
+  zone_type: restricted
+  security_level: 2
+  max_occupancy: 2
+  geometry_version: 1
+  vertices:
+  - vertex_order: 0
+    x: -0.813
+    y: 8.597
+  - vertex_order: 1
+    x: -0.813
+    y: 8.597
+  - vertex_order: 2
+    x: -0.813
+    y: 8.597
+  - vertex_order: 3
+    x: 2.102
+    y: 8.597
+  - vertex_order: 4
+    x: 2.102
+    y: 8.597
+  - vertex_order: 5
+    x: 2.102
+    y: 8.597
+  - vertex_order: 6
+    x: 2.102
+    y: 5.817
+  - vertex_order: 7
+    x: 2.102
+    y: 5.817
+  - vertex_order: 8
+    x: 2.102
+    y: 5.817
+  - vertex_order: 9
+    x: 2.102
+    y: 5.817
+  - vertex_order: 10
+    x: 2.102
+    y: 5.817
+  - vertex_order: 11
+    x: -0.813
+    y: 5.817
+  - vertex_order: 12
+    x: -0.813
+    y: 5.817
+  - vertex_order: 13
+    x: -0.813
+    y: 5.817
+  - vertex_order: 14
+    x: -0.813
+    y: 8.597
+  - vertex_order: 15
+    x: -0.813
+    y: 8.597
+- zone_id: zone_it_annex
+  name: IT annex (302)
+  zone_type: restricted
+  security_level: 3
+  max_occupancy: 2
+  geometry_version: 1
+  vertices:
+  - vertex_order: 0
+    x: -1.183
+    y: 8.697
+  - vertex_order: 1
+    x: -1.183
+    y: 8.697
+  - vertex_order: 2
+    x: -1.183
+    y: 8.697
+  - vertex_order: 3
+    x: -1.183
+    y: 12.686
+  - vertex_order: 4
+    x: -1.183
+    y: 12.686
+  - vertex_order: 5
+    x: -1.183
+    y: 12.686
+  - vertex_order: 6
+    x: 2.102
+    y: 12.686
+  - vertex_order: 7
+    x: 2.102
+    y: 12.686
+  - vertex_order: 8
+    x: 2.102
+    y: 12.686
+  - vertex_order: 9
+    x: 2.102
+    y: 8.697
+  - vertex_order: 10
+    x: 2.102
+    y: 8.697
+  - vertex_order: 11
+    x: 2.102
+    y: 8.697
+- zone_id: zone_office_307
+  name: Office (307)
+  zone_type: workspace
+  security_level: 2
+  max_occupancy: 2
+  geometry_version: 1
+  vertices:
+  - vertex_order: 0
+    x: 26.227
+    y: -0.403
+  - vertex_order: 1
+    x: 26.227
+    y: -0.403
+  - vertex_order: 2
+    x: 26.227
+    y: -0.403
+  - vertex_order: 3
+    x: 26.227
+    y: -0.403
+  - vertex_order: 4
+    x: 26.227
+    y: -0.403
+  - vertex_order: 5
+    x: 26.227
+    y: -0.403
+  - vertex_order: 6
+    x: 26.227
+    y: 3.937
+  - vertex_order: 7
+    x: 26.227
+    y: 3.937
+  - vertex_order: 8
+    x: 26.227
+    y: 3.937
+  - vertex_order: 9
+    x: 28.785
+    y: 3.937
+  - vertex_order: 10
+    x: 28.785
+    y: 3.937
+  - vertex_order: 11
+    x: 28.785
+    y: 3.937
+  - vertex_order: 12
+    x: 28.785
+    y: 3.937
+  - vertex_order: 13
+    x: 28.785
+    y: 3.937
+  - vertex_order: 14
+    x: 28.785
+    y: 3.937
+  - vertex_order: 15
+    x: 28.785
+    y: -0.403
+  - vertex_order: 16
+    x: 28.785
+    y: -0.403
+  - vertex_order: 17
+    x: 28.785
+    y: -0.403
+cameras:
+- camera_id: cam_1
+  name: Corridor west (looks at d1/d2)
+  primary_zone_id: zone_corridor
+  status: active
+  location_description: WiseNET Corridor west (looks at d1/d2)
+- camera_id: cam_2
+  name: Corridor east (looks down the corridor)
+  primary_zone_id: zone_corridor
+  status: active
+  location_description: WiseNET Corridor east (looks down the corridor)
+- camera_id: cam_3
+  name: Vision lab
+  primary_zone_id: zone_vision_lab
+  status: active
+  location_description: WiseNET Vision lab
+- camera_id: cam_4
+  name: Workroom (looks at d2/d5/d6)
+  primary_zone_id: zone_workroom
+  status: active
+  location_description: WiseNET Workroom (looks at d2/d5/d6)
+- camera_id: cam_5
+  name: Workroom (looks at d3/d2)
+  primary_zone_id: zone_workroom
+  status: active
+  location_description: WiseNET Workroom (looks at d3/d2)
+- camera_id: cam_6
+  name: Print room
+  primary_zone_id: zone_print_room
+  status: active
+  location_description: WiseNET Print room
