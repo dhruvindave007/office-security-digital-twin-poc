@@ -293,6 +293,34 @@ def cmd_eval_mot(args: argparse.Namespace) -> None:
     )
 
 
+def cmd_render_clip(args: argparse.Namespace) -> None:
+    """Annotated video + smooth heatmaps for a clip (no twin writes; uses a throwaway twin for zones)."""
+    import tempfile
+
+    try:
+        from src.vision.render import render_clip
+        from src.vision.zones import VisionZoneResolver
+    except ImportError:
+        from vision.render import render_clip
+        from vision.zones import VisionZoneResolver
+
+    settings = get_settings()
+    config, clips_dir = _load_clip(settings, args.name)
+    import os
+    os.environ["DATABASE_URL"] = "sqlite:///" + os.path.join(tempfile.mkdtemp(), "render.db")
+    get_settings.cache_clear()
+    rt_settings = get_settings()
+    runtime = build_runtime(rt_settings)
+    store = runtime.twin_engine.store
+    verts = store.get_all_vertices_by_zone()
+    zones = [{"name": z.name, "poly": [(v.x, v.y) for v in verts.get(z.zone_id, [])]} for z in store.get_zones()]
+    with _quiet_stdout():
+        tracker = make_tracker(rt_settings, model=args.model, device=args.device)
+        out = render_clip(config, tracker, runtime.homography_manager, VisionZoneResolver.from_twin_store(store),
+                          zones, Path(clips_dir), Path(clips_dir) / "out" / config.name, args.max_frames or 0)
+    _emit(out)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="python -m src.vision.cli", description=__doc__.splitlines()[0])
     sub = parser.add_subparsers(dest="command", required=True)
@@ -303,6 +331,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--model", default=None, help="e.g. yolo11n_openvino_model with --device intel:gpu")
     p.add_argument("--max-frames", type=int, default=None)
     p.set_defaults(func=cmd_run_clip)
+
+    p = sub.add_parser("render-clip", help="Annotated CCTV video + smooth heatmaps (files in data/clips/out/).")
+    p.add_argument("name")
+    p.add_argument("--device", default=None)
+    p.add_argument("--model", default=None)
+    p.add_argument("--max-frames", type=int, default=None)
+    p.set_defaults(func=cmd_render_clip)
 
     p = sub.add_parser("export-openvino", help="Export YOLO weights to OpenVINO IR.")
     p.add_argument("--model", default=None)
