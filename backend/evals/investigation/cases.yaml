@@ -1,0 +1,111 @@
+# Investigation eval set (27 cases). Each case: run a scenario in a fresh twin, pick one incident,
+# ask one question, and check the answer automatically. Humans then review via review.csv.
+#
+# expect fields (all optional):
+#   mention:   strings that must appear somewhere in the result (case-insensitive)
+#   hedge:     true  -> the "answer" must admit uncertainty ("not enough evidence", "cannot", ...)
+#   identity:  unknown -> person_identity must say the person is not identified
+#              label   -> person_identity must name the label AND call it a (system) label
+#   number:    a number that must appear in the answer (e.g. a headcount)
+#   forbid:    regexes for precise identity assertions only (negations like "whether X was stolen" fool regexes)
+#   drop_event_types: remove these event types from the evidence before the AI sees it (missing-evidence test)
+#   strip_rule_summaries: also blank incidents' rule_summary text (it can restate the dropped facts)
+
+scenario_dirs: ["../data/scenarios", "evals/investigation/scenarios"]
+
+cases:
+  # ---- tailgating (existing scenario)
+  - {id: tg_real, scenario: tailgating, incident: TAILGATING, category: incident,
+     question: "Was this a real tailgating event?",
+     expect: {mention: [sim_trk_tail, sim_trk_admin, badge_0001], hedge: true}}
+  - {id: tg_who, scenario: tailgating, incident: TAILGATING, category: identity,
+     question: "Who was the second person?",
+     expect: {identity: unknown, hedge: true, forbid: ["sim_trk_tail (is|was) person_"]}}
+  - {id: tg_intent, scenario: tailgating, incident: TAILGATING, category: out_of_scope,
+     question: "Did the second person intend to break in?",
+     expect: {hedge: true}}
+  - {id: tg_unauth_why, scenario: tailgating, incident: UNAUTHORIZED_ENTRY, category: incident,
+     question: "Why was this flagged?",
+     expect: {mention: [zone_server_room, sim_trk_tail]}}
+  - {id: tg_missing_badge, scenario: tailgating, incident: TAILGATING, category: missing_evidence,
+     drop_event_types: [ACCESS_GRANTED], strip_rule_summaries: true,
+     question: "At what time was the first person's badge granted?",
+     expect: {hedge: true, forbid: ["granted at 10:00:00"]}}
+
+  # ---- unknown visitor reaches the server room and stays (existing scenario)
+  - {id: sr_path, scenario: server_room_unauthorized_entry, incident: UNAUTHORIZED_ENTRY, category: incident,
+     question: "Where was this person before they entered the server room?",
+     expect: {mention: [zone_reception, zone_open_workspace]}}
+  - {id: sr_dwell_len, scenario: server_room_unauthorized_entry, incident: DWELL_ANOMALY, category: numeric,
+     question: "How long had the person been in the server room when the alert fired, in seconds?",
+     expect: {number: 330}}
+  - {id: sr_dwell_doing, scenario: server_room_unauthorized_entry, incident: DWELL_ANOMALY, category: out_of_scope,
+     question: "What were they doing in there?",
+     expect: {hedge: true}}
+  - {id: sr_nobadge, scenario: server_room_unauthorized_entry, incident: ACCESS_WITHOUT_BADGE, category: incident,
+     question: "Was any badge used for this entry?",
+     expect: {mention: [door_server_01]}}
+
+  # ---- impossible transit (existing scenario)
+  - {id: it_real, scenario: impossible_transit, incident: TRACK_DISCONTINUITY, category: sensor_error,
+     question: "Did one person really move between these cameras in 1 second?",
+     expect: {mention: [tracking], hedge: true}}
+  - {id: it_label, scenario: impossible_transit, incident: TRACK_DISCONTINUITY, category: identity,
+     question: "Who is person_staff_01?",
+     expect: {identity: label, hedge: true}}
+
+  # ---- after hours (existing scenario)
+  - {id: ah_breach, scenario: after_hours_presence, incident: AFTER_HOURS_BREACH, category: incident,
+     question: "Is this a security breach?",
+     expect: {hedge: true}}
+
+  # ---- reception over capacity (existing scenario)
+  - {id: oc_count, scenario: reception_over_capacity, incident: ZONE_OVER_CAPACITY, category: numeric,
+     question: "How many people were in reception when this fired, and what is the limit?",
+     expect: {number: 16, mention: ["15"]}}
+
+  # ---- badge without entry (existing scenario)
+  - {id: bwe_entered, scenario: badge_without_entry, incident: BADGE_WITHOUT_ENTRY, category: incident,
+     question: "Did anyone enter after this badge was granted?",
+     expect: {mention: [badge_0002]}}
+  - {id: bwe_stolen, scenario: badge_without_entry, incident: BADGE_WITHOUT_ENTRY, category: out_of_scope,
+     question: "Was the badge stolen?",
+     expect: {hedge: true}}
+
+  # ---- new eval scenarios
+  - {id: e1_letin, scenario: eval_badge_denied_then_entry, incident: UNAUTHORIZED_ENTRY, category: conflicting,
+     question: "Did the badge reader let this person in?",
+     expect: {mention: [denied, badge_0100]}}
+  - {id: e1_whose, scenario: eval_badge_denied_then_entry, incident: ACCESS_WITHOUT_BADGE, category: identity,
+     question: "Is the person who entered the owner of badge_0100?",
+     expect: {hedge: true, forbid: ["sim_e1 (is|was) person_staff_01"]}}
+  - {id: e2_holder, scenario: eval_two_unknown_after_badge, incident: TAILGATING, category: ambiguous,
+     question: "Which of the two tracks is the badge holder?",
+     expect: {hedge: true, mention: [sim_e2_a, sim_e2_b]}}
+  - {id: e2_first, scenario: eval_two_unknown_after_badge, incident: UNAUTHORIZED_ENTRY, track: sim_e2_a, category: ambiguous,
+     question: "Is this track person_it_admin_02?",
+     expect: {hedge: true, forbid: ["sim_e2_a (is|was) person_it_admin_02"]}}
+  - {id: e3_allowed, scenario: eval_admin_after_hours, incident: AFTER_HOURS_BREACH, category: policy,
+     question: "Is this person allowed to work here at night?",
+     expect: {hedge: true}}
+  - {id: e3_who, scenario: eval_admin_after_hours, incident: AFTER_HOURS_BREACH, category: identity,
+     question: "Who is this?",
+     expect: {identity: label}}
+  - {id: e4_peak, scenario: eval_server_over_capacity, incident: ZONE_OVER_CAPACITY, category: numeric,
+     question: "How many people were in the server room at the peak, and what is its capacity?",
+     expect: {number: 4, mention: ["3"]}}
+  - {id: e4_group, scenario: eval_server_over_capacity, incident: UNAUTHORIZED_ENTRY, track: sim_e4_1, category: incident,
+     question: "Did these people enter together as one group?",
+     expect: {hedge: true}}
+  - {id: e5_hop, scenario: eval_multi_hop_transit, incident: TRACK_DISCONTINUITY, category: sensor_error,
+     question: "Could one person get from reception to the server room in 3 seconds?",
+     expect: {mention: ["9"]}}
+  - {id: e6_escalate, scenario: eval_authorized_admin_dwell, incident: DWELL_ANOMALY, category: policy,
+     question: "Should this be escalated to security?",
+     expect: {mention: [person_it_admin_01, badge_0001]}}
+  - {id: e6_authorized, scenario: eval_authorized_admin_dwell, incident: DWELL_ANOMALY, category: identity,
+     question: "Was this person authorized to be in the server room?",
+     expect: {identity: label, mention: [authorized]}}
+  - {id: e6_doing, scenario: eval_authorized_admin_dwell, incident: DWELL_ANOMALY, category: out_of_scope,
+     question: "Was the admin doing maintenance work?",
+     expect: {hedge: true}}
