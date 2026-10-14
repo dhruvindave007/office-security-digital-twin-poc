@@ -81,12 +81,14 @@ class CorrelationPolicy(dict):
         badge_entry_window_seconds: float = 15.0,
         tailgating_window_seconds: float = 10.0,
         transit_slack_seconds: float = 2.0,
+        grant_after_entry_tolerance_seconds: float = 0.0,
         **kwargs: Any,
     ):
         super().__init__(
             badge_entry_window_seconds=float(badge_entry_window_seconds),
             tailgating_window_seconds=float(tailgating_window_seconds),
             transit_slack_seconds=float(transit_slack_seconds),
+            grant_after_entry_tolerance_seconds=float(grant_after_entry_tolerance_seconds),
             **kwargs,
         )
 
@@ -97,6 +99,11 @@ class CorrelationPolicy(dict):
     @property
     def tailgating_window_seconds(self) -> float:
         return float(self.get("tailgating_window_seconds", 10.0))
+
+    @property
+    def grant_after_entry_tolerance_seconds(self) -> float:
+        """How long an entry may wait for a badge event logged AFTER the camera saw the person (0 = off)."""
+        return float(self.get("grant_after_entry_tolerance_seconds", 0.0))
 
     @property
     def transit_slack_seconds(self) -> float:
@@ -243,6 +250,7 @@ def load_access_policy(path: Union[str, Path] = "data/rules/access_policy.yaml")
             badge_entry_window_seconds=float(raw_corr.get("badge_entry_window_seconds", 15.0)),
             tailgating_window_seconds=float(raw_corr.get("tailgating_window_seconds", 10.0)),
             transit_slack_seconds=float(raw_corr.get("transit_slack_seconds", 2.0)),
+            grant_after_entry_tolerance_seconds=float(raw_corr.get("grant_after_entry_tolerance_seconds", 0.0)),
         )
     else:
         correlation = CorrelationPolicy()
