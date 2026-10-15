@@ -1,0 +1,7 @@
+name: print_room_over_capacity
+description: "SIMULATED: three people in the print room, whose capacity is 2."
+base_time_utc: now
+steps:
+  - {t: 0.0, camera_id: cam_6, track_id: "sim:print_a", floor: [0.64, 7.21], confidence: 0.9}
+  - {t: 0.3, camera_id: cam_6, track_id: "sim:print_b", floor: [0.64, 7.21], confidence: 0.9}
+  - {t: 0.6, camera_id: cam_6, track_id: "sim:print_c", floor: [0.64, 7.21], confidence: 0.9}

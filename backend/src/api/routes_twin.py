@@ -177,20 +177,28 @@ async def get_events(
     event_type: Optional[str] = None,
     start_time: Optional[str] = None,
     end_time: Optional[str] = None,
+    event_ids: Optional[str] = Query(None, description="Comma-separated event IDs (max 200); other filters ignored."),
 ):
     """Query the immutable append-only event ledger with indexed filters."""
     start_time = _time_param("start_time", start_time)
     end_time = _time_param("end_time", end_time)
     engine = _get_engine(request)
-    events, total = engine.store.get_events(
-        limit=limit,
-        offset=offset,
-        zone_id=zone_id,
-        track_id=track_id,
-        event_type=event_type,
-        start_time=start_time,
-        end_time=end_time,
-    )
+    if event_ids is not None:
+        ids = [i.strip() for i in event_ids.split(",") if i.strip()]
+        if len(ids) > 200:
+            raise HTTPException(status_code=422, detail="event_ids: at most 200 IDs")
+        events = engine.store.get_events_by_ids(ids)
+        total = len(events)
+    else:
+        events, total = engine.store.get_events(
+            limit=limit,
+            offset=offset,
+            zone_id=zone_id,
+            track_id=track_id,
+            event_type=event_type,
+            start_time=start_time,
+            end_time=end_time,
+        )
 
     event_responses: List[EventResponse] = []
     for e in events:
