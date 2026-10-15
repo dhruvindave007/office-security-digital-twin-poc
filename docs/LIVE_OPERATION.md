@@ -12,6 +12,8 @@ CC BY-NC-SA 4.0: internal use only.
 `READY` is printed only after it has verified: API health, every camera live and processing, a camera
 picture, and the push channel delivering twin state.
 
+Then open the operator dashboard at http://127.0.0.1:8000/ (see `docs/DASHBOARD.md`).
+
 ## The pipeline, per camera
 
     camera stream -> newest frame only -> detect + track (YOLO11s, OpenVINO) -> feet -> floor position

@@ -172,5 +172,6 @@ def test_live_api_status_start_stop_frame(site_runtime):
         assert _wait(lambda: mgr.jpeg("cam_2") is not None)
         r = client.get("/api/live/cameras/cam_2/frame.jpg")
         assert r.status_code == 200 and r.headers["content-type"] == "image/jpeg"
+        assert int(r.headers["X-Frame-Age-Ms"]) < 5000 and r.headers["X-Frame-Captured-At"]   # how old the picture is
         assert client.get("/api/live/cameras/nope/frame.jpg").status_code == 404
         assert client.post("/api/live/stop").json()["stopped"] == ["cam_1", "cam_2"]

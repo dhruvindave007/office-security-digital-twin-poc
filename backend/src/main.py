@@ -203,3 +203,22 @@ async def health_check():
 @app.get("/api/health", tags=["System"])
 async def api_health_check():
     return await health_check()
+
+
+# Operator dashboard (frontend/dist, built with `npm run build`): served from the same origin as the
+# API, so the browser needs no CORS and the push channel and API share one host. Mounted last: every
+# API route above takes precedence. Absent build -> API only.
+def _mount_dashboard() -> None:
+    from pathlib import Path
+    from fastapi.staticfiles import StaticFiles
+    dist = Path(settings.frontend_dist_dir)
+    if not dist.is_absolute():
+        dist = (Path(__file__).resolve().parents[1] / dist).resolve()
+    if (dist / "index.html").is_file():
+        app.mount("/", StaticFiles(directory=str(dist), html=True), name="dashboard")
+        logger.info(f"Dashboard served from {dist}")
+    else:
+        logger.info(f"No dashboard build at {dist} (run: cd frontend && npm run build); serving the API only")
+
+
+_mount_dashboard()
