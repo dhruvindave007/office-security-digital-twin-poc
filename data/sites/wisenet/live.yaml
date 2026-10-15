@@ -1,0 +1,28 @@
+# Live cameras for the WiseNET site (internal use only: CC BY-NC-SA 4.0 footage).
+#
+# "Replay as live": each camera is a recording of set 5 played at real speed and looped, so the
+# system sees exactly what a live camera would give it (frames arriving in real time, stamped with
+# the wall clock). For real cameras replace `url` with the camera's stream, e.g.
+#   rtsp://user:password@192.168.1.64:554/Streaming/Channels/102   (sub-stream, 640x480 is plenty)
+# or the replay-as-RTSP server (scripts/replay_as_rtsp.ps1): rtsp://127.0.0.1:8554/cam_1
+#
+# Only one camera per room feeds the twin (no cross-camera re-identification yet, so a person seen by
+# two cameras would be counted twice); the others are detected and shown on the wall only.
+
+process_fps: 5            # detections per second per camera (6 cameras -> 30 inferences/s)
+track_exit_seconds: 2.0   # unseen this long = left the camera's view
+calibration_path: calibration.json
+
+cameras:
+  - {camera_id: cam_1, url: ../../datasets/wisenet/wisenet_dataset/video_sets/set_5/video5_1.avi, feed_twin: false, device: "intel:npu", model: yolo11s_480_openvino_model}
+  - {camera_id: cam_2, url: ../../datasets/wisenet/wisenet_dataset/video_sets/set_5/video5_2.avi, feed_twin: true,  device: "intel:gpu", model: yolo11s_480_openvino_model}
+  - {camera_id: cam_3, url: ../../datasets/wisenet/wisenet_dataset/video_sets/set_5/video5_3.avi, feed_twin: true,  device: "intel:gpu", model: yolo11s_480_openvino_model}
+  - {camera_id: cam_4, url: ../../datasets/wisenet/wisenet_dataset/video_sets/set_5/video5_4.avi, feed_twin: true,  device: "intel:gpu", model: yolo11s_480_openvino_model}
+  - {camera_id: cam_5, url: ../../datasets/wisenet/wisenet_dataset/video_sets/set_5/video5_5.avi, feed_twin: false, device: "intel:npu", model: yolo11s_480_openvino_model}
+  - {camera_id: cam_6, url: ../../datasets/wisenet/wisenet_dataset/video_sets/set_5/video5_6.avi, feed_twin: true,  device: "intel:gpu", model: yolo11s_480_openvino_model}
+
+# The vision-lab badge door (d4) as seen by cam_3: the dataset's door region for 640x480.
+# An entry counts only if the person's first box is at this door and they are tracked >= 5 times
+# (~1 s); the decision is made when the late-badge tolerance (5 s) has passed.
+entry_gates:
+  cam_3: {roi: [219, 26, 94, 145], image_size: [640, 480], margin_frac: 0.33, min_sightings: 5}

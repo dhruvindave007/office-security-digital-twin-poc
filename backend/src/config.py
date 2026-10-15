@@ -69,6 +69,10 @@ class Settings(BaseSettings):
 
     # Rules & Simulator Configuration
     rules_policy_path: str = "data/rules/access_policy.yaml"
+
+    # Live cameras (src/live). A site's camera list, e.g. ../data/sites/wisenet/live.yaml
+    live_config_path: str = ""
+    live_autostart: bool = False
     simulator_scenarios_dir: str = "data/scenarios"
     access_config_path: str = "data/access/doors.yaml"
 
