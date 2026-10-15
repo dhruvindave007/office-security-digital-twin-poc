@@ -49,8 +49,14 @@ class DigitalTwinEngine:
         telemetry: Optional[TwinTelemetry] = None,
         dwell_threshold_seconds: float = 300.0,
         track_ttl_seconds: float = 30.0,
+        position_sample_seconds: float = 0.0,
     ):
         self.store = store
+        # Store a PERSON_DETECTED position at most this often per track (0 = every detection). Zone
+        # changes are always stored; skipped samples stay in memory and are written if a rule cites one.
+        # Live 6 cameras x 5 fps wrote ~1.6 GB/day at every detection.
+        self.position_sample_seconds = position_sample_seconds
+        self._last_pos_stored: Dict[str, Any] = {}
         self.state = state or TwinState()
         self.snapshot_manager = snapshot_manager or SnapshotManager()
         self.telemetry = telemetry or TwinTelemetry()
@@ -259,6 +265,14 @@ class DigitalTwinEngine:
                 )
 
         # 7. Persist to append-only SQLite ledger
+        if self.position_sample_seconds > 0:
+            now_dt = parse_utc(timestamp)
+            last = self._last_pos_stored.get(track_id)
+            if len(emitted_events) == 1 and last is not None and (now_dt - last).total_seconds() < self.position_sample_seconds:
+                self.store.defer_event(emitted_events[0])     # plain position sample, no transition
+                self.telemetry.record_ingest(1, (time.perf_counter() - start_time) * 1000.0)
+                return emitted_events
+            self._last_pos_stored[track_id] = now_dt
         for evt in emitted_events:
             seq_num = self.store.append_event(evt)
             evt.sequence_num = seq_num
@@ -291,6 +305,7 @@ class DigitalTwinEngine:
         lost_events: List[TwinEvent] = []
 
         for entity in pruned_entities:
+            self._last_pos_stored.pop(entity.track_id, None)
             evt = TwinEvent(
                 event_id=generate_uuid7(),
                 event_type="TRACK_LOST",

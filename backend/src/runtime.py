@@ -110,6 +110,7 @@ def build_runtime(settings: Any) -> Runtime:
         seed_path=settings.twin_floorplan_seed_path,
         track_ttl_seconds=settings.twin_track_ttl_seconds,
         snapshot_interval=settings.twin_snapshot_interval_events,
+        position_sample_seconds=settings.twin_position_sample_seconds,
     )
 
     policy = load_access_policy(settings.rules_policy_path)

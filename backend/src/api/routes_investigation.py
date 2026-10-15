@@ -56,3 +56,12 @@ def list_investigations(incident_id: str, request: Request) -> Dict[str, Any]:
         "spent_today_usd": round(service.spent_today_usd(), 6),
         "daily_budget_usd": service.daily_budget_usd,
     }
+
+
+@router.get("/investigations/auto")
+def auto_investigation_status(request: Request) -> Dict[str, Any]:
+    """Automatic investigation: settings, outcome counts, and the latest decisions (incl. skipped ones)."""
+    auto = getattr(request.app.state, "auto_investigator", None)
+    if auto is None:
+        return {"enabled": False}
+    return {"enabled": True, **auto.status()}

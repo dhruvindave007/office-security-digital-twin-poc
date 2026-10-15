@@ -13,8 +13,10 @@ try:
     from src.ai.model_registry import DynamicValidator
     from src.api.routes_access import router as access_router
     from src.api.routes_investigation import router as investigation_router
-    from src.api.routes_live import router as live_router
+    from src.api.routes_live import evidence_router, router as live_router
     from src.api.routes_simulator import router as simulator_router
+    from src.api.routes_stream import Broadcaster, router as stream_router
+    from src.api.routes_twin import _row_to_incident_response
     from src.api.routes_system import router as system_router
     from src.api.routes_twin import router as twin_router
     from src.api.routes_vision import router as vision_router
@@ -27,8 +29,10 @@ except ImportError:
     from ai.model_registry import DynamicValidator
     from api.routes_access import router as access_router
     from api.routes_investigation import router as investigation_router
-    from api.routes_live import router as live_router
+    from api.routes_live import evidence_router, router as live_router
     from api.routes_simulator import router as simulator_router
+    from api.routes_stream import Broadcaster, router as stream_router
+    from api.routes_twin import _row_to_incident_response
     from api.routes_system import router as system_router
     from api.routes_twin import router as twin_router
     from api.routes_vision import router as vision_router
@@ -96,6 +100,27 @@ async def lifespan(app: FastAPI):
     app.state.clip_job_manager = runtime.clip_job_manager
     app.state.tracker_factory = runtime.tracker_factory
     app.state.investigation_service = runtime.investigation_service
+    broadcaster = Broadcaster(asyncio.get_running_loop())
+    app.state.broadcaster = broadcaster
+    if runtime.rule_engine is not None:
+        runtime.rule_engine.listeners.append(
+            broadcaster.incident_listener(lambda inc: _row_to_incident_response(inc).model_dump()))
+    auto_investigator = None
+    if settings.auto_investigate_enabled and runtime.investigation_service is not None and runtime.rule_engine is not None:
+        try:
+            from src.ai.investigation.auto import AutoInvestigator
+        except ImportError:
+            from ai.investigation.auto import AutoInvestigator
+
+        def _wait_evidence(incident_id, timeout):
+            ev = getattr(getattr(app.state, "live_manager", None), "evidence", None)
+            return ev.wait_ready(incident_id, timeout) if ev is not None else False
+        auto_investigator = AutoInvestigator(
+            runtime.investigation_service, min_severity=settings.auto_investigate_min_severity,
+            cooldown_seconds=settings.auto_investigate_cooldown_seconds,
+            max_per_hour=settings.auto_investigate_max_per_hour, wait_for_evidence=_wait_evidence)
+        runtime.rule_engine.listeners.append(auto_investigator.on_incidents)
+    app.state.auto_investigator = auto_investigator
     live_manager = LiveManager(settings, twin_engine, runtime.rule_engine, access_service=runtime.access_service)
     app.state.live_manager = live_manager
     if settings.live_autostart and settings.live_config_path:
@@ -130,6 +155,8 @@ async def lifespan(app: FastAPI):
         except asyncio.CancelledError:
             pass
         await asyncio.to_thread(live_manager.stop)
+        if auto_investigator is not None:
+            await asyncio.to_thread(auto_investigator.close)
         twin_engine.store.close()  # release the per-thread SQLite connections
 
 
@@ -156,6 +183,8 @@ app.include_router(access_router)
 app.include_router(vision_router)
 app.include_router(simulator_router)
 app.include_router(live_router)
+app.include_router(evidence_router)
+app.include_router(stream_router)
 
 
 @app.get("/health", tags=["System"])
