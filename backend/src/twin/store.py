@@ -47,6 +47,11 @@ class TwinStore:
             Path(clean_path).parent.mkdir(parents=True, exist_ok=True)
             self._real_path = clean_path
             self._conn = None
+        # File DBs: one long-lived connection per thread. Opening a connection and re-applying the
+        # pragmas on every call cost ~15 ms per event (measured: evals/perf/profile_ingest.py).
+        self._local = threading.local()
+        self._all_conns: List[sqlite3.Connection] = []
+        self._conns_lock = threading.Lock()  # not self._lock: writers already hold that when connecting
 
         self._init_db()
 
@@ -65,23 +70,42 @@ class TwinStore:
         if self._is_memory:
             yield self._conn
         else:
-            conn = sqlite3.connect(
-                self._real_path,
-                check_same_thread=False,
-                timeout=5.0,
-            )
-            conn.row_factory = sqlite3.Row
-            self._apply_pragmas(conn)
+            conn = getattr(self._local, "conn", None)
+            if conn is None:
+                conn = sqlite3.connect(
+                    self._real_path,
+                    check_same_thread=False,
+                    timeout=5.0,
+                )
+                conn.row_factory = sqlite3.Row
+                self._apply_pragmas(conn)
+                self._local.conn = conn
+                with self._conns_lock:
+                    self._all_conns.append(conn)
             try:
                 yield conn
+            except BaseException:
+                if conn.in_transaction:
+                    conn.rollback()
+                raise
             finally:
-                conn.close()
+                # Reads must not leave a transaction open (it would pin an old WAL snapshot).
+                if conn.in_transaction and not getattr(self._local, "batch_depth", 0):
+                    conn.commit()
 
     def close(self) -> None:
-        """Close persistent in-memory connection if active."""
+        """Close the in-memory connection, or every per-thread file connection."""
         if self._is_memory and self._conn is not None:
             self._conn.close()
             self._conn = None
+        with self._conns_lock:
+            conns, self._all_conns = self._all_conns, []
+        for c in conns:
+            try:
+                c.close()
+            except sqlite3.Error:
+                pass
+        self._local = threading.local()
 
     def _init_db(self) -> None:
         """Run pending schema migrations."""

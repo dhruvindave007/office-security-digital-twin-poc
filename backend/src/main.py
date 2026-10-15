@@ -118,6 +118,7 @@ async def lifespan(app: FastAPI):
             await prune_task
         except asyncio.CancelledError:
             pass
+        twin_engine.store.close()  # release the per-thread SQLite connections
 
 
 settings = get_settings()
