@@ -13,24 +13,28 @@ try:
     from src.ai.model_registry import DynamicValidator
     from src.api.routes_access import router as access_router
     from src.api.routes_investigation import router as investigation_router
+    from src.api.routes_live import router as live_router
     from src.api.routes_simulator import router as simulator_router
     from src.api.routes_system import router as system_router
     from src.api.routes_twin import router as twin_router
     from src.api.routes_vision import router as vision_router
     from src.config import get_settings
     from src.core.locks import TWIN_WRITE_LOCK
+    from src.live.manager import LiveManager
     from src.runtime import build_runtime
 except ImportError:
     from ai.bedrock_client import BedrockClient
     from ai.model_registry import DynamicValidator
     from api.routes_access import router as access_router
     from api.routes_investigation import router as investigation_router
+    from api.routes_live import router as live_router
     from api.routes_simulator import router as simulator_router
     from api.routes_system import router as system_router
     from api.routes_twin import router as twin_router
     from api.routes_vision import router as vision_router
     from config import get_settings
     from core.locks import TWIN_WRITE_LOCK
+    from live.manager import LiveManager
     from runtime import build_runtime
 
 logger = logging.getLogger("office_vision.main")
@@ -92,6 +96,13 @@ async def lifespan(app: FastAPI):
     app.state.clip_job_manager = runtime.clip_job_manager
     app.state.tracker_factory = runtime.tracker_factory
     app.state.investigation_service = runtime.investigation_service
+    live_manager = LiveManager(settings, twin_engine, runtime.rule_engine)
+    app.state.live_manager = live_manager
+    if settings.live_autostart and settings.live_config_path:
+        try:
+            await asyncio.to_thread(live_manager.start)
+        except Exception as e:  # the API must still come up; /api/live/status shows nothing running
+            logger.error(f"Live cameras failed to start from {settings.live_config_path}: {e}")
 
     # 4. Background prune loop
     async def prune_loop():
@@ -118,6 +129,7 @@ async def lifespan(app: FastAPI):
             await prune_task
         except asyncio.CancelledError:
             pass
+        await asyncio.to_thread(live_manager.stop)
         twin_engine.store.close()  # release the per-thread SQLite connections
 
 
@@ -143,6 +155,7 @@ app.include_router(investigation_router)
 app.include_router(access_router)
 app.include_router(vision_router)
 app.include_router(simulator_router)
+app.include_router(live_router)
 
 
 @app.get("/health", tags=["System"])
