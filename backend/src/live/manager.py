@@ -33,6 +33,7 @@ class LiveManager:
         self.incident_listeners: List[Callable[[List[Any]], None]] = []
         self._jpeg_cache: Dict[str, Any] = {}
         self._saved_hooks = None
+        self._picture_at: Dict[str, Any] = {}     # capture time of the picture jpeg() last returned, per camera
         self.access_service = access_service
         self.badge_replayer: Optional[BadgeReplayer] = None
         self.evidence: Optional[EvidenceRecorder] = None
@@ -145,6 +146,10 @@ class LiveManager:
                            "processed_fps": round(sum(c["processed_fps"] for c in busy), 2),
                            "missed_slots": sum(c["missed_slots"] for c in cams)}}
 
+    def picture_time(self, camera_id: str):
+        """Wall-clock capture time of the camera's latest picture (None if none yet)."""
+        return self._picture_at.get(camera_id)
+
     def jpeg(self, camera_id: str, annotated: bool = True, quality: int = 75, max_width: int = 960) -> Optional[bytes]:
         """Latest processed picture of a camera as JPEG (boxes + track numbers when annotated)."""
         w = self.workers.get(camera_id)
@@ -155,8 +160,9 @@ class LiveManager:
             got = w.source.latest(0)           # not processed yet (or detect=False): raw picture
             if got is None:
                 return None
-            frame, _, seq = got
+            frame, captured_at, seq = got
             dets = []
+        self._picture_at[camera_id] = captured_at
         key = (camera_id, seq, annotated, max_width)
         cached = self._jpeg_cache.get(camera_id)
         if cached and cached[0] == key:

@@ -79,6 +79,7 @@ class Settings(BaseSettings):
     # Live cameras (src/live). A site's camera list, e.g. ../data/sites/wisenet/live.yaml
     live_config_path: str = ""
     live_autostart: bool = False
+    frontend_dist_dir: str = "../frontend/dist"   # built dashboard served at /, relative to backend/
     # Evidence clips recorded around serious live incidents (src/live/evidence.py)
     evidence_enabled: bool = True
     evidence_dir: str = "data/evidence"

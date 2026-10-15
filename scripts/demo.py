@@ -79,7 +79,36 @@ def check_prereqs(args) -> bool:
                        "backend\\.venv\\Scripts\\python.exe scripts\\aws_sso_login.py (everything else works)")
     if not port_free(args.port):
         line(FAIL, f"port {args.port} is in use (another backend running?)"); good = False
-    return good
+    return good and check_dashboard(args)
+
+
+def check_dashboard(args) -> bool:
+    """The operator dashboard is served by the backend from frontend/dist; build it when missing or stale."""
+    dist = FRONTEND / "dist" / "index.html"
+    src_mtime = max((f.stat().st_mtime for f in (FRONTEND / "src").rglob("*") if f.is_file()), default=0)
+    stale = not dist.exists() or dist.stat().st_mtime < max(src_mtime, (FRONTEND / "index.html").stat().st_mtime)
+    if not stale:
+        line(OK, "dashboard build up to date (frontend/dist)")
+        return True
+    if args.no_build:
+        line(WARN if dist.exists() else FAIL, "dashboard build " + ("is older than its source" if dist.exists() else "missing")
+             + " and --no-build was given")
+        return dist.exists()
+    npm = shutil.which("npm")
+    if not npm:
+        line(WARN if dist.exists() else FAIL, "npm not found: cannot (re)build the dashboard"
+             + (" - serving the existing, older build" if dist.exists() else ""))
+        return dist.exists()
+    if not (FRONTEND / "node_modules").exists():
+        line(WARN, "installing dashboard dependencies (npm install, one time)")
+        if subprocess.run([npm, "install"], cwd=FRONTEND).returncode != 0:
+            line(FAIL, "npm install failed"); return False
+    line(WARN, "building the dashboard (npm run build, ~10 s)")
+    r = subprocess.run([npm, "run", "build"], cwd=FRONTEND, capture_output=True, text=True)
+    if r.returncode != 0 or not dist.exists():
+        line(FAIL, "dashboard build failed:\n" + (r.stdout + r.stderr)[-1500:]); return False
+    line(OK, "dashboard built (frontend/dist)")
+    return True
 
 
 def main() -> int:
@@ -88,6 +117,7 @@ def main() -> int:
     ap.add_argument("--no-ai", action="store_true", help="disable automatic Bedrock investigations")
     ap.add_argument("--port", type=int, default=8000)
     ap.add_argument("--fresh", action="store_true", help="start with an empty database and evidence folder")
+    ap.add_argument("--no-build", action="store_true", help="do not (re)build the dashboard; serve whatever frontend/dist has")
     args = ap.parse_args()
 
     print("Office Vision Twin demo: WiseNET building, 6 live cameras\n")
@@ -154,6 +184,8 @@ def main() -> int:
         got_state = r.readline().startswith(b"event: state")
     r.close()
     checks.append(("push channel (SSE) delivering twin state", got_state))
+    page = get(base + "/").read()
+    checks.append(("operator dashboard served at /", b'<div id="root">' in page))
     print()
     for name, ok in checks:
         line(OK if ok else FAIL, name)
@@ -161,6 +193,7 @@ def main() -> int:
         stop()
     print(f"""
 READY.
+  Operator dashboard     : {base}/
   API + interactive docs : {base}/docs
   Live camera (MJPEG)    : {base}/api/live/cameras/cam_3/mjpeg     (cam_1 ... cam_6)
   Camera health          : {base}/api/live/status

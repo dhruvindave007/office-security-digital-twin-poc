@@ -85,3 +85,6 @@ tools/
 backend/data/evidence/
 backend/data/*.log
 backend/data/*.db*
+
+# frontend source folder named lib/ (the Python rule above would hide it)
+!frontend/src/lib/
