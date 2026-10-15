@@ -7,6 +7,7 @@ from typing import Any, Callable, Dict, List, Optional
 from .config import LiveConfig, load_live_config
 from .badge_replay import BadgeReplayer
 from .entry_gate import EntryGate
+from .evidence import EvidenceRecorder
 from .projector import SiteProjector
 from .source import FrameSource
 from .worker import CameraWorker
@@ -34,6 +35,7 @@ class LiveManager:
         self._saved_hooks = None
         self.access_service = access_service
         self.badge_replayer: Optional[BadgeReplayer] = None
+        self.evidence: Optional[EvidenceRecorder] = None
 
     def _default_tracker(self, cam):
         try:
@@ -67,13 +69,30 @@ class LiveManager:
             if gate is not None and corr is not None:
                 self._saved_hooks = (corr.entry_filter, corr.entry_confirm)
                 corr.entry_filter, corr.entry_confirm = gate.entry_filter, gate.entry_confirm
+            if getattr(self.settings, "evidence_enabled", True):
+                zone_of = {c: cc.get("zone_id") for c, cc in (projector.cameras.items() if projector else [])}
+                twin_cams = [c.camera_id for c in cfg.cameras if c.feed_twin]
+
+                def cams_for(inc, zone_of=zone_of, twin_cams=twin_cams):
+                    if inc.track_id and inc.track_id.startswith("live:"):
+                        return [inc.track_id.split(":")[1]]
+                    return [c for c in twin_cams if zone_of.get(c) == inc.zone_id]
+                self.evidence = EvidenceRecorder(
+                    getattr(self.settings, "evidence_dir", "data/evidence"),
+                    pre_seconds=getattr(self.settings, "evidence_pre_seconds", 12.0),
+                    post_seconds=getattr(self.settings, "evidence_post_seconds", 8.0),
+                    min_severity=getattr(self.settings, "evidence_min_severity", "HIGH"),
+                    max_total_mb=getattr(self.settings, "evidence_max_total_mb", 2000.0),
+                    fps=cfg.process_fps, camera_for_incident=cams_for)
+                if self.rules is not None:
+                    self.rules.listeners.append(self.evidence.on_incidents)
             workers = {}
             for cam in cfg.cameras:
                 src = self.source_factory(cam)
                 workers[cam.camera_id] = CameraWorker(
                     cam, src, (lambda c=cam: self.tracker_builder(c)) if cam.detect else None, projector,
                     self.twin, self.rules, cfg.process_fps, cfg.track_exit_seconds, on_incidents=self._emit,
-                    entry_gate=gate)
+                    entry_gate=gate, evidence=self.evidence)
             for w in workers.values():
                 w.source.start()
                 w.start()
@@ -98,6 +117,10 @@ class LiveManager:
             w.stop()
         self._jpeg_cache.clear()
         self.started_at = None
+        if self.evidence is not None:
+            if self.rules is not None and self.evidence.on_incidents in self.rules.listeners:
+                self.rules.listeners.remove(self.evidence.on_incidents)
+            self.evidence.close()   # keeps the recorder readable (manifests) after stop
         corr = getattr(self.rules, "correlation", None)
         if corr is not None and self._saved_hooks is not None:
             corr.entry_filter, corr.entry_confirm = self._saved_hooks
@@ -113,6 +136,7 @@ class LiveManager:
         busy = [c for c in cams if c["state"] == "running" and c["detect"]]
         return {"running": self.running, "config_path": self.config_path, "started_at": self.started_at,
                 "process_fps": self.config.process_fps if self.config else None,
+                "evidence": self.evidence.status() if self.evidence else None,
                 "badge_replay": ({"swipes_fired": self.badge_replayer.fired, "last_error": self.badge_replayer.last_error}
                                  if self.badge_replayer else None),
                 "cameras": cams,

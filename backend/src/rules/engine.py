@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
+from typing import Any, Callable, Dict, List, Optional, Tuple, TYPE_CHECKING
 
 try:
     from src.twin.engine import generate_uuid7
@@ -22,6 +22,7 @@ if TYPE_CHECKING:
         from rules.correlation import CorrelationEngine
 
 logger = logging.getLogger("office_vision.rules.engine")
+EVIDENCE_HEAD, EVIDENCE_TAIL = 20, 30   # supporting events kept per incident
 
 
 class IncidentRuleEngine:
@@ -39,6 +40,10 @@ class IncidentRuleEngine:
         self.policy = policy
         self.correlation = correlation
         self._open_incidents: Dict[Tuple, Incident] = {}
+        self._new_ids: set = set()
+        # Called with (new_incidents, changed_incidents) after each evaluate() that persisted something.
+        # Runs inside the twin write lock: listeners must only enqueue work (evidence, AI), never block.
+        self.listeners: List[Callable[[List[Incident], List[Incident]], None]] = []
         self._load_open_incidents()
 
     def _get_dedupe_key(
@@ -107,6 +112,10 @@ class IncidentRuleEngine:
             ids = []
         if event_id not in ids:
             ids.append(event_id)
+        # Live incidents can stay open for hours (e.g. after-hours presence at 5 sightings/s): keep how
+        # it started and what is happening now, not every sighting (was unbounded and quadratic).
+        if len(ids) > EVIDENCE_HEAD + EVIDENCE_TAIL:
+            ids = ids[:EVIDENCE_HEAD] + ids[-EVIDENCE_TAIL:]
         incident.supporting_event_ids_json = json.dumps(ids)
         incident.updated_at = timestamp
 
@@ -155,6 +164,7 @@ class IncidentRuleEngine:
             )
             self._open_incidents[dedupe_key] = inc
             changed[inc.incident_id] = inc
+            self._new_ids.add(inc.incident_id)
             return inc
 
     def evaluate(self, events: List[TwinEvent]) -> List[Incident]:
@@ -307,8 +317,18 @@ class IncidentRuleEngine:
                     extra_event_ids=cand.extra_event_ids,
                 )
 
-        # Persist all created or modified incidents
+        # Persist all created or modified incidents (and any cited event still held only in memory)
         for inc in changed.values():
+            self.store.ensure_persisted(json.loads(inc.supporting_event_ids_json or "[]"))
             self.store.insert_incident(inc)
 
-        return list(changed.values())
+        result = list(changed.values())
+        new = [i for i in result if i.incident_id in self._new_ids]
+        self._new_ids.clear()
+        if result:
+            for fn in list(self.listeners):
+                try:
+                    fn(new, result)
+                except Exception:
+                    logger.warning("incident listener failed", exc_info=True)
+        return result

@@ -1,5 +1,6 @@
 from contextlib import contextmanager
 from datetime import datetime
+from collections import OrderedDict
 import json
 import logging
 from pathlib import Path
@@ -51,7 +52,11 @@ class TwinStore:
         # pragmas on every call cost ~15 ms per event (measured: evals/perf/profile_ingest.py).
         self._local = threading.local()
         self._all_conns: List[sqlite3.Connection] = []
-        self._conns_lock = threading.Lock()  # not self._lock: writers already hold that when connecting
+        self._conns_lock = threading.Lock()
+        # Position samples the engine chose not to store (see DigitalTwinEngine.position_sample_seconds).
+        # If a rule later cites one as evidence, ensure_persisted() writes it, so no reference dangles.
+        self._deferred: "OrderedDict[str, TwinEvent]" = OrderedDict()
+        self._deferred_max = 20000          # ~10 min of samples at 30 detections/s  # not self._lock: writers already hold that when connecting
 
         self._init_db()
 
@@ -317,6 +322,23 @@ class TwinStore:
             conn.commit()
             event.sequence_num = seq_num
             return seq_num
+
+    def defer_event(self, event: TwinEvent) -> None:
+        """Keep an event in memory instead of the ledger (it may still be written if cited)."""
+        with self._conns_lock:
+            self._deferred[event.event_id] = event
+            while len(self._deferred) > self._deferred_max:
+                self._deferred.popitem(last=False)
+
+    def ensure_persisted(self, event_ids) -> int:
+        """Write any of these events that are still only deferred in memory. Returns how many."""
+        if not self._deferred:
+            return 0
+        with self._conns_lock:
+            found = [self._deferred.pop(eid) for eid in event_ids if eid in self._deferred]
+        for ev in found:
+            ev.sequence_num = self.append_event(ev)
+        return len(found)
 
     def get_events(
         self,
