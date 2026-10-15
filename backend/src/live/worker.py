@@ -33,7 +33,7 @@ def _pct(values, q):
 class CameraWorker:
     def __init__(self, cam_cfg, source, tracker_factory: Optional[Callable[[], Any]], projector,
                  twin_engine, rule_engine, process_fps: float, track_exit_seconds: float,
-                 on_incidents: Optional[Callable[[List[Any]], None]] = None, entry_gate=None):
+                 on_incidents: Optional[Callable[[List[Any]], None]] = None, entry_gate=None, evidence=None):
         self.cfg = cam_cfg
         self.camera_id = cam_cfg.camera_id
         self.source = source
@@ -45,6 +45,7 @@ class CameraWorker:
         self.track_exit_seconds = track_exit_seconds
         self.on_incidents = on_incidents
         self.entry_gate = entry_gate
+        self.evidence = evidence
         self.track_prefix = f"live:{self.camera_id}:"
         self._stop = threading.Event()
         self._thread: Optional[threading.Thread] = None
@@ -151,6 +152,8 @@ class CameraWorker:
             self.last_detections = dets
         self.people_in_view = len(dets)
         self.frames_processed += 1
+        if self.evidence is not None and self.tracker is not None:
+            self.evidence.add_frame(self.camera_id, captured_at, frame, dets)
         self._lat["detect_ms"].append((t1 - t0) * 1000)
         self._lat["twin_ms"].append((t2 - t1) * 1000)
         self._lat["end_to_end_ms"].append((datetime.now(timezone.utc) - captured_at).total_seconds() * 1000)

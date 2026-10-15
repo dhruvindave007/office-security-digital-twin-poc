@@ -43,6 +43,11 @@ class Settings(BaseSettings):
     # Second, cheap pass that checks every claim against the records it cites (see claim_check.py).
     investigation_claim_judge: bool = True
     investigation_daily_budget_usd: float = 1.0
+    # Automatic investigation of serious incidents (src/ai/investigation/auto.py). Off by default: it spends money.
+    auto_investigate_enabled: bool = False
+    auto_investigate_min_severity: str = "HIGH"
+    auto_investigate_cooldown_seconds: float = 600.0   # one per (incident type, room) per 10 min
+    auto_investigate_max_per_hour: int = 12
     bedrock_connect_timeout: float = 10.0
     bedrock_read_timeout: float = 60.0
     bedrock_max_retries: int = 3
@@ -52,6 +57,7 @@ class Settings(BaseSettings):
     twin_snapshot_interval_events: int = 100
     twin_floorplan_seed_path: str = "src/twin/floorplan_seed.yaml"
     twin_prune_interval_seconds: float = 5.0
+    twin_position_sample_seconds: float = 0.0   # live sites: 1.0 (store each person's position once a second)
 
     # Vision Geometry Configuration
     vision_calibration_dir: str = "data/calibration"
@@ -73,6 +79,13 @@ class Settings(BaseSettings):
     # Live cameras (src/live). A site's camera list, e.g. ../data/sites/wisenet/live.yaml
     live_config_path: str = ""
     live_autostart: bool = False
+    # Evidence clips recorded around serious live incidents (src/live/evidence.py)
+    evidence_enabled: bool = True
+    evidence_dir: str = "data/evidence"
+    evidence_pre_seconds: float = 12.0
+    evidence_post_seconds: float = 8.0
+    evidence_min_severity: str = "HIGH"
+    evidence_max_total_mb: float = 2000.0
     simulator_scenarios_dir: str = "data/scenarios"
     access_config_path: str = "data/access/doors.yaml"
 

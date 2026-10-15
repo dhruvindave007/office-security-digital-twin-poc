@@ -73,3 +73,46 @@ async def live_mjpeg(camera_id: str, request: Request, annotated: bool = True, w
 
     return StreamingResponse(frames(), media_type="multipart/x-mixed-replace; boundary=frame",
                              headers={"Cache-Control": "no-store"})
+
+
+# -- Evidence clips (files under settings.evidence_dir; readable whether or not cameras run) --------
+evidence_router = APIRouter(tags=["Evidence"])
+
+
+def _evidence_root(request: Request):
+    from pathlib import Path
+    settings = getattr(request.app.state, "settings", None)
+    if settings is None:
+        try:
+            from src.config import get_settings
+        except ImportError:
+            from config import get_settings
+        settings = get_settings()
+    return Path(settings.evidence_dir).resolve()
+
+
+@evidence_router.get("/api/twin/incidents/{incident_id}/evidence")
+def incident_evidence(incident_id: str, request: Request) -> Dict[str, Any]:
+    import json
+    import re
+    if not re.fullmatch(r"[0-9a-fA-F-]{8,64}", incident_id):
+        raise HTTPException(status_code=422, detail="bad incident id")
+    root = _evidence_root(request)
+    path = root / "incidents" / f"{incident_id}.json"
+    if not path.exists():
+        return {"incident_id": incident_id, "clips": []}
+    doc = json.loads(path.read_text(encoding="utf-8"))
+    doc["clips"] = [dict(c, video_url=f"/api/evidence/{c['video']}", key_frame_url=f"/api/evidence/{c['key_frame']}")
+                    for c in doc["clips"] if (root / c["video"]).exists()]
+    return doc
+
+
+@evidence_router.get("/api/evidence/clips/{name}")
+def evidence_file(name: str, request: Request):
+    from fastapi.responses import FileResponse
+    root = _evidence_root(request) / "clips"
+    path = (root / name).resolve()
+    if path.parent != root or not path.is_file():     # no path traversal, files only
+        raise HTTPException(status_code=404, detail="not found")
+    media = {".mp4": "video/mp4", ".avi": "video/x-msvideo", ".jpg": "image/jpeg"}.get(path.suffix.lower(), "application/octet-stream")
+    return FileResponse(path, media_type=media)

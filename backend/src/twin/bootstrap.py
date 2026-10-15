@@ -26,6 +26,7 @@ class TwinBootstrapService:
         seed_path: Optional[str] = None,
         track_ttl_seconds: float = 30.0,
         snapshot_interval: int = 100,
+        position_sample_seconds: float = 0.0,
     ) -> DigitalTwinEngine:
         """Bootstrap the complete Digital Twin runtime."""
         logger.info("Initializing TwinStore at '%s'...", db_path)
@@ -49,6 +50,7 @@ class TwinBootstrapService:
             snapshot_manager=snapshot_mgr,
             telemetry=telemetry,
             track_ttl_seconds=track_ttl_seconds,
+            position_sample_seconds=position_sample_seconds,
         )
 
         # Step 3: Replay delta events since snapshot checkpoint
