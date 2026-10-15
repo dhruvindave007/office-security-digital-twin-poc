@@ -5,6 +5,8 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 from shapely.geometry import Polygon
 
+from src.core.timeutil import canonical_utc
+
 
 @dataclass(frozen=True)
 class PolygonValidationResult:
@@ -86,6 +88,8 @@ class EventValidator:
         "UNAUTHORIZED_ACCESS",
         "TAILGATING_SUSPECTED",
         "TRACK_LOST",
+        "ACCESS_GRANTED",
+        "ACCESS_DENIED",
     }
 
     @classmethod
@@ -103,14 +107,9 @@ class EventValidator:
 
     @staticmethod
     def validate_timestamp(timestamp: str) -> str:
-        if not timestamp or not isinstance(timestamp, str):
-            raise ValueError("timestamp must be a non-empty ISO-8601 string.")
-        try:
-            # Validate ISO-8601 compliance
-            datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
-        except Exception as e:
-            raise ValueError(f"Invalid ISO-8601 timestamp '{timestamp}': {e}") from e
-        return timestamp
+        # Validate AND normalise: the ledger stores one fixed-width UTC format so that
+        # string comparison == chronological comparison (see core/timeutil.py).
+        return canonical_utc(timestamp)
 
     @staticmethod
     def validate_coordinates(coords: Optional[Tuple[float, float]]) -> Optional[Tuple[float, float]]:

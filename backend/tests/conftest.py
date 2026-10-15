@@ -2,9 +2,21 @@ import pytest
 from fastapi.testclient import TestClient
 
 try:
-    from main import app
-except ImportError:
     from src.main import app
+    from src.config import get_settings
+except ImportError:
+    from main import app
+    from config import get_settings
+
+
+@pytest.fixture(autouse=True)
+def isolate_test_database(tmp_path, monkeypatch):
+    """Ensure every test runs against an isolated throwaway database and never touches backend/data/digital_twin.db."""
+    test_db = tmp_path / "test.db"
+    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{test_db}")
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
 
 
 @pytest.fixture

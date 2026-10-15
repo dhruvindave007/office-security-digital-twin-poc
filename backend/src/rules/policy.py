@@ -6,16 +6,15 @@ import yaml
 
 try:
     from src.core.paths import _resolve_data_path
+    from src.core.timeutil import parse_utc
 except ImportError:
     from core.paths import _resolve_data_path
+    from core.timeutil import parse_utc
 
 
 def parse_utc_timestamp(ts: str) -> datetime:
     """Parse ISO-8601 timestamp string, treating naive strings as UTC."""
-    dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc)
+    return parse_utc(ts)
 
 
 def _validate_hh_mm(val: Any, field_name: str = "time") -> Tuple[int, int]:
@@ -74,6 +73,43 @@ class BusinessHoursPolicy(dict):
         return self.get("end", "19:00")
 
 
+class CorrelationPolicy(dict):
+    """Dictionary representing correlation parameters with attribute access."""
+
+    def __init__(
+        self,
+        badge_entry_window_seconds: float = 15.0,
+        tailgating_window_seconds: float = 10.0,
+        transit_slack_seconds: float = 2.0,
+        grant_after_entry_tolerance_seconds: float = 0.0,
+        **kwargs: Any,
+    ):
+        super().__init__(
+            badge_entry_window_seconds=float(badge_entry_window_seconds),
+            tailgating_window_seconds=float(tailgating_window_seconds),
+            transit_slack_seconds=float(transit_slack_seconds),
+            grant_after_entry_tolerance_seconds=float(grant_after_entry_tolerance_seconds),
+            **kwargs,
+        )
+
+    @property
+    def badge_entry_window_seconds(self) -> float:
+        return float(self.get("badge_entry_window_seconds", 15.0))
+
+    @property
+    def tailgating_window_seconds(self) -> float:
+        return float(self.get("tailgating_window_seconds", 10.0))
+
+    @property
+    def grant_after_entry_tolerance_seconds(self) -> float:
+        """How long an entry may wait for a badge event logged AFTER the camera saw the person (0 = off)."""
+        return float(self.get("grant_after_entry_tolerance_seconds", 0.0))
+
+    @property
+    def transit_slack_seconds(self) -> float:
+        return float(self.get("transit_slack_seconds", 2.0))
+
+
 @dataclass
 class AccessPolicy:
     """Access policy controlling zone authorization, business hours, and dwell anomaly thresholds."""
@@ -84,6 +120,9 @@ class AccessPolicy:
         default_factory=lambda: BusinessHoursPolicy(start="08:00", end="19:00")
     )
     dwell_alert_min_security_level: int = 3
+    correlation: CorrelationPolicy = field(
+        default_factory=lambda: CorrelationPolicy()
+    )
 
     def __post_init__(self) -> None:
         # Normalize and validate restricted zones
@@ -113,6 +152,18 @@ class AccessPolicy:
         _validate_hh_mm(s_val, "business_hours_utc.start")
         _validate_hh_mm(e_val, "business_hours_utc.end")
         self.business_hours_utc = BusinessHoursPolicy(start=s_val, end=e_val)
+
+        # Normalize and validate correlation
+        if isinstance(self.correlation, CorrelationPolicy):
+            pass
+        elif isinstance(self.correlation, dict):
+            self.correlation = CorrelationPolicy(
+                badge_entry_window_seconds=float(self.correlation.get("badge_entry_window_seconds", 15.0)),
+                tailgating_window_seconds=float(self.correlation.get("tailgating_window_seconds", 10.0)),
+                transit_slack_seconds=float(self.correlation.get("transit_slack_seconds", 2.0)),
+            )
+        else:
+            self.correlation = CorrelationPolicy()
 
     def is_authorized(self, zone_id: str, person_id: Optional[str]) -> bool:
         """Return True if person_id is authorized to enter zone_id."""
@@ -157,13 +208,28 @@ def load_access_policy(path: Union[str, Path] = "data/rules/access_policy.yaml")
 
     raw_restricted = data.get("restricted_zones", {})
     restricted_zones: Dict[str, RestrictedZonePolicy] = {}
-    if isinstance(raw_restricted, dict):
-        for zone_id, zone_cfg in raw_restricted.items():
-            if isinstance(zone_cfg, dict):
-                restricted_zones[zone_id] = RestrictedZonePolicy(
-                    min_security_level=int(zone_cfg.get("min_security_level", 1)),
-                    authorized_person_ids=list(zone_cfg.get("authorized_person_ids", [])),
-                )
+    # A malformed restricted zone must fail loudly: silently skipping it leaves the zone UNPROTECTED.
+    if raw_restricted is None:
+        raw_restricted = {}
+    if not isinstance(raw_restricted, dict):
+        raise ValueError("restricted_zones must be a mapping of zone_id -> {authorized_person_ids: [...]}")
+    for zone_id, zone_cfg in raw_restricted.items():
+        if zone_cfg is None:
+            zone_cfg = {}  # "zone_x:" with no body = restricted, nobody authorized
+        if not isinstance(zone_cfg, dict):
+            raise ValueError(f"restricted_zones.{zone_id} must be a mapping, got {type(zone_cfg).__name__}")
+        authorized = zone_cfg.get("authorized_person_ids", [])
+        if authorized is None:
+            authorized = []
+        if not isinstance(authorized, list) or not all(isinstance(p, str) for p in authorized):
+            raise ValueError(
+                f"restricted_zones.{zone_id}.authorized_person_ids must be a list of strings "
+                f"(a single string would be split into characters)"
+            )
+        restricted_zones[zone_id] = RestrictedZonePolicy(
+            min_security_level=int(zone_cfg.get("min_security_level", 1)),
+            authorized_person_ids=list(authorized),
+        )
 
     raw_hours = data.get("business_hours_utc", {})
     if isinstance(raw_hours, dict):
@@ -178,9 +244,21 @@ def load_access_policy(path: Union[str, Path] = "data/rules/access_policy.yaml")
 
     dwell_min_sec = int(data.get("dwell_alert_min_security_level", 3))
 
+    raw_corr = data.get("correlation", {})
+    if isinstance(raw_corr, dict):
+        correlation = CorrelationPolicy(
+            badge_entry_window_seconds=float(raw_corr.get("badge_entry_window_seconds", 15.0)),
+            tailgating_window_seconds=float(raw_corr.get("tailgating_window_seconds", 10.0)),
+            transit_slack_seconds=float(raw_corr.get("transit_slack_seconds", 2.0)),
+            grant_after_entry_tolerance_seconds=float(raw_corr.get("grant_after_entry_tolerance_seconds", 0.0)),
+        )
+    else:
+        correlation = CorrelationPolicy()
+
     return AccessPolicy(
         version=version,
         restricted_zones=restricted_zones,
         business_hours_utc=business_hours,
         dwell_alert_min_security_level=dwell_min_sec,
+        correlation=correlation,
     )

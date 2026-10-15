@@ -1,8 +1,20 @@
 from datetime import datetime, timezone
 import json
+import math
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, Query, Request
+try:
+    from src.core.locks import TWIN_WRITE_LOCK
+    from src.core.timeutil import canonical_utc
+    from src.rules.policy import parse_utc_timestamp
+    from src.twin.history import occupancy_series, position_heatmap, track_path
+except ImportError:
+    from core.locks import TWIN_WRITE_LOCK
+    from core.timeutil import canonical_utc
+    from rules.policy import parse_utc_timestamp
+    from twin.history import occupancy_series, position_heatmap, track_path
+
 try:
     from src.twin.engine import DigitalTwinEngine
     from src.twin.models import Incident
@@ -33,6 +45,16 @@ except ImportError:
     )
 
 router = APIRouter(prefix="/api/twin", tags=["Digital Twin"])
+
+
+def _time_param(name: str, value: Optional[str]) -> Optional[str]:
+    """Validate an ISO-8601 query parameter and return it in canonical ledger format (422 on garbage)."""
+    if value is None or value == "":
+        return None
+    try:
+        return canonical_utc(value)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=f"Invalid {name}: {e}")
 
 
 def _get_engine(request: Request) -> DigitalTwinEngine:
@@ -155,18 +177,28 @@ async def get_events(
     event_type: Optional[str] = None,
     start_time: Optional[str] = None,
     end_time: Optional[str] = None,
+    event_ids: Optional[str] = Query(None, description="Comma-separated event IDs (max 200); other filters ignored."),
 ):
     """Query the immutable append-only event ledger with indexed filters."""
+    start_time = _time_param("start_time", start_time)
+    end_time = _time_param("end_time", end_time)
     engine = _get_engine(request)
-    events, total = engine.store.get_events(
-        limit=limit,
-        offset=offset,
-        zone_id=zone_id,
-        track_id=track_id,
-        event_type=event_type,
-        start_time=start_time,
-        end_time=end_time,
-    )
+    if event_ids is not None:
+        ids = [i.strip() for i in event_ids.split(",") if i.strip()]
+        if len(ids) > 200:
+            raise HTTPException(status_code=422, detail="event_ids: at most 200 IDs")
+        events = engine.store.get_events_by_ids(ids)
+        total = len(events)
+    else:
+        events, total = engine.store.get_events(
+            limit=limit,
+            offset=offset,
+            zone_id=zone_id,
+            track_id=track_id,
+            event_type=event_type,
+            start_time=start_time,
+            end_time=end_time,
+        )
 
     event_responses: List[EventResponse] = []
     for e in events:
@@ -229,7 +261,7 @@ async def get_incidents(
     incident_responses = [_row_to_incident_response(inc) for inc in incidents]
 
     return IncidentsListResponse(
-        total=len(incident_responses),
+        total=engine.store.count_incidents(status=status, severity=severity, zone_id=zone_id),
         incidents=incident_responses,
     )
 
@@ -254,24 +286,163 @@ async def patch_incident(
     body: IncidentPatchRequest,
 ):
     """Update status of an incident."""
+    with TWIN_WRITE_LOCK:
+        engine = _get_engine(request)
+        inc = engine.store.get_incident(incident_id)
+        if not inc:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Incident {incident_id} not found",
+            )
+
+        now_iso = datetime.now(timezone.utc).isoformat()
+        inc.updated_at = now_iso
+        if body.status in ("RESOLVED", "FALSE_POSITIVE"):
+            if inc.end_time is None:
+                inc.end_time = now_iso
+        else:
+            inc.end_time = None  # re-opened: it has not ended
+        inc.status = body.status
+
+        engine.store.insert_incident(inc)
+
+        # Keep the rule engine's dedupe copy identical to what was just stored; otherwise the
+        # next piece of evidence overwrites this status with the engine's stale OPEN copy.
+        rule_engine = getattr(request.app.state, "rule_engine", None)
+        if rule_engine:
+            rule_engine.sync_incident(inc)
+
+        return _row_to_incident_response(inc)
+
+
+@router.get("/tracks/{track_id}/path")
+async def get_track_path(
+    request: Request,
+    track_id: str,
+    start_time: Optional[str] = None,
+    end_time: Optional[str] = None,
+):
+    """Retrieve ordered path points for a specific track. Returns 404 if no points exist."""
+    start_time = _time_param("start_time", start_time)
+    end_time = _time_param("end_time", end_time)
     engine = _get_engine(request)
-    inc = engine.store.get_incident(incident_id)
-    if not inc:
+    events = engine.store.get_events_ascending(
+        track_id=track_id,
+        event_types=["PERSON_DETECTED"],
+        start_time=start_time,
+        end_time=end_time,
+    )
+    points = track_path(events)
+    if not points:
         raise HTTPException(
             status_code=404,
-            detail=f"Incident {incident_id} not found",
+            detail=f"Track '{track_id}' has no path points.",
+        )
+    return points
+
+
+@router.get("/occupancy/history")
+async def get_occupancy_history(
+    request: Request,
+    start_time: Optional[str] = None,
+    end_time: Optional[str] = None,
+    bucket_seconds: int = Query(60, ge=1, le=86400),
+    zone_id: Optional[str] = None,
+):
+    """Retrieve time-series occupancy buckets across zones."""
+    if not start_time or not end_time:
+        raise HTTPException(
+            status_code=422,
+            detail="start_time and end_time query parameters are required.",
+        )
+    try:
+        start_dt = parse_utc_timestamp(start_time)
+        end_dt = parse_utc_timestamp(end_time)
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"Invalid timestamp format: {e}")
+
+    if end_dt <= start_dt:
+        raise HTTPException(
+            status_code=422,
+            detail="end_time must be strictly greater than start_time.",
+        )
+    if bucket_seconds < 1:
+        raise HTTPException(
+            status_code=422,
+            detail="bucket_seconds must be at least 1.",
         )
 
-    now_iso = datetime.now(timezone.utc).isoformat()
-    inc.updated_at = now_iso
-    if body.status in ("RESOLVED", "FALSE_POSITIVE") and inc.end_time is None:
-        inc.end_time = now_iso
-    inc.status = body.status
+    total_seconds = (end_dt - start_dt).total_seconds()
+    num_buckets = math.ceil(total_seconds / bucket_seconds)
+    if num_buckets > 1440:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Request would generate {num_buckets} buckets, exceeding the maximum limit of 1440.",
+        )
 
-    engine.store.insert_incident(inc)
+    engine = _get_engine(request)
+    # Occupancy at any instant depends on EVERY earlier zone event, so fetch all of them
+    # (a newest-N limit silently dropped tracks that entered long ago).
+    events = engine.store.get_events_ascending(
+        event_types=["ZONE_ENTERED", "ZONE_EXITED", "CROSS_ZONE_TRANSITION", "TRACK_LOST"],
+        end_time=canonical_utc(end_dt),
+    )
+    series = occupancy_series(events, start_dt, end_dt, bucket_seconds)
 
-    rule_engine = getattr(request.app.state, "rule_engine", None)
-    if rule_engine and body.status in ("RESOLVED", "FALSE_POSITIVE"):
-        rule_engine.forget(incident_id)
+    if zone_id:
+        filtered = []
+        for item in series:
+            occ = item["occupancy"]
+            filtered.append(
+                {
+                    "bucket_start": item["bucket_start"],
+                    "occupancy": {zone_id: occ.get(zone_id, 0)},
+                }
+            )
+        return filtered
 
-    return _row_to_incident_response(inc)
+    return series
+
+
+@router.get("/heatmap")
+async def get_position_heatmap(
+    request: Request,
+    start_time: Optional[str] = None,
+    end_time: Optional[str] = None,
+    cell_size_m: float = Query(1.0),
+):
+    """Generate spatial 2D heatmap aggregated over PERSON_DETECTED observations."""
+    if not math.isfinite(cell_size_m) or cell_size_m < 0.25 or cell_size_m > 10.0:
+        raise HTTPException(
+            status_code=422,
+            detail="cell_size_m must be between 0.25 and 10.0.",
+        )
+
+    if start_time and end_time:
+        try:
+            start_dt = parse_utc_timestamp(start_time)
+            end_dt = parse_utc_timestamp(end_time)
+            if end_dt <= start_dt:
+                raise HTTPException(
+                    status_code=422,
+                    detail="end_time must be strictly greater than start_time.",
+                )
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=422, detail=f"Invalid timestamp format: {e}")
+
+    start_time = _time_param("start_time", start_time)
+    end_time = _time_param("end_time", end_time)
+    engine = _get_engine(request)
+    zones = engine.store.get_zones()
+    width_m = max((z.max_x for z in zones), default=1.0)
+    height_m = max((z.max_y for z in zones), default=1.0)
+
+    events = engine.store.get_events_ascending(
+        event_types=["PERSON_DETECTED"],
+        start_time=start_time,
+        end_time=end_time,
+    )
+    return position_heatmap(events, width_m, height_m, cell_size_m)
+

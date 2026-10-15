@@ -1,5 +1,6 @@
 from contextlib import contextmanager
 from datetime import datetime
+from collections import OrderedDict
 import json
 import logging
 from pathlib import Path
@@ -7,6 +8,7 @@ import sqlite3
 import threading
 from typing import Any, Dict, Generator, List, Optional, Tuple
 
+from src.core.timeutil import canonical_utc
 from src.twin.migrations import run_migrations
 from src.twin.models import (
     Camera,
@@ -46,6 +48,15 @@ class TwinStore:
             Path(clean_path).parent.mkdir(parents=True, exist_ok=True)
             self._real_path = clean_path
             self._conn = None
+        # File DBs: one long-lived connection per thread. Opening a connection and re-applying the
+        # pragmas on every call cost ~15 ms per event (measured: evals/perf/profile_ingest.py).
+        self._local = threading.local()
+        self._all_conns: List[sqlite3.Connection] = []
+        self._conns_lock = threading.Lock()
+        # Position samples the engine chose not to store (see DigitalTwinEngine.position_sample_seconds).
+        # If a rule later cites one as evidence, ensure_persisted() writes it, so no reference dangles.
+        self._deferred: "OrderedDict[str, TwinEvent]" = OrderedDict()
+        self._deferred_max = 20000          # ~10 min of samples at 30 detections/s  # not self._lock: writers already hold that when connecting
 
         self._init_db()
 
@@ -64,23 +75,42 @@ class TwinStore:
         if self._is_memory:
             yield self._conn
         else:
-            conn = sqlite3.connect(
-                self._real_path,
-                check_same_thread=False,
-                timeout=5.0,
-            )
-            conn.row_factory = sqlite3.Row
-            self._apply_pragmas(conn)
+            conn = getattr(self._local, "conn", None)
+            if conn is None:
+                conn = sqlite3.connect(
+                    self._real_path,
+                    check_same_thread=False,
+                    timeout=5.0,
+                )
+                conn.row_factory = sqlite3.Row
+                self._apply_pragmas(conn)
+                self._local.conn = conn
+                with self._conns_lock:
+                    self._all_conns.append(conn)
             try:
                 yield conn
+            except BaseException:
+                if conn.in_transaction:
+                    conn.rollback()
+                raise
             finally:
-                conn.close()
+                # Reads must not leave a transaction open (it would pin an old WAL snapshot).
+                if conn.in_transaction and not getattr(self._local, "batch_depth", 0):
+                    conn.commit()
 
     def close(self) -> None:
-        """Close persistent in-memory connection if active."""
+        """Close the in-memory connection, or every per-thread file connection."""
         if self._is_memory and self._conn is not None:
             self._conn.close()
             self._conn = None
+        with self._conns_lock:
+            conns, self._all_conns = self._all_conns, []
+        for c in conns:
+            try:
+                c.close()
+            except sqlite3.Error:
+                pass
+        self._local = threading.local()
 
     def _init_db(self) -> None:
         """Run pending schema migrations."""
@@ -260,8 +290,10 @@ class TwinStore:
     def append_event(self, event: TwinEvent) -> int:
         """Append an immutable event to the ledger.
 
-        Strictly append-only. Returns assigned sequence_num.
+        Strictly append-only. Returns assigned sequence_num. The timestamp is normalised to the
+        canonical fixed-width UTC format (also on the passed-in event object).
         """
+        event.timestamp = canonical_utc(event.timestamp)
         with self._lock, self.get_connection() as conn:
             cur = conn.execute(
                 """
@@ -291,6 +323,23 @@ class TwinStore:
             event.sequence_num = seq_num
             return seq_num
 
+    def defer_event(self, event: TwinEvent) -> None:
+        """Keep an event in memory instead of the ledger (it may still be written if cited)."""
+        with self._conns_lock:
+            self._deferred[event.event_id] = event
+            while len(self._deferred) > self._deferred_max:
+                self._deferred.popitem(last=False)
+
+    def ensure_persisted(self, event_ids) -> int:
+        """Write any of these events that are still only deferred in memory. Returns how many."""
+        if not self._deferred:
+            return 0
+        with self._conns_lock:
+            found = [self._deferred.pop(eid) for eid in event_ids if eid in self._deferred]
+        for ev in found:
+            ev.sequence_num = self.append_event(ev)
+        return len(found)
+
     def get_events(
         self,
         limit: int = 50,
@@ -316,10 +365,10 @@ class TwinStore:
             params.append(event_type)
         if start_time:
             clauses.append("timestamp >= ?")
-            params.append(start_time)
+            params.append(canonical_utc(start_time))  # ValueError on malformed input
         if end_time:
             clauses.append("timestamp <= ?")
-            params.append(end_time)
+            params.append(canonical_utc(end_time))
 
         where_sql = f"WHERE {' AND '.join(clauses)}" if clauses else ""
 
@@ -354,6 +403,15 @@ class TwinStore:
             ]
             return events, total
 
+    def get_events_by_ids(self, event_ids: List[str]) -> List[TwinEvent]:
+        """Fetch specific ledger events (e.g. an incident's supporting events), in ledger order."""
+        if not event_ids:
+            return []
+        marks = ",".join("?" for _ in event_ids)
+        with self.get_connection() as conn:
+            cur = conn.execute(f"SELECT * FROM events WHERE event_id IN ({marks}) ORDER BY sequence_num ASC;", list(event_ids))
+            return [self._row_to_event(r) for r in cur.fetchall()]
+
     def get_events_since(self, sequence_num: int) -> List[TwinEvent]:
         """Fetch all events strictly greater than sequence_num in ascending order (for replay)."""
         with self.get_connection() as conn:
@@ -361,30 +419,36 @@ class TwinStore:
                 "SELECT * FROM events WHERE sequence_num > ? ORDER BY sequence_num ASC;",
                 (sequence_num,),
             )
-            return [
-                TwinEvent(
-                    sequence_num=row["sequence_num"],
-                    event_id=row["event_id"],
-                    event_type=row["event_type"],
-                    timestamp=row["timestamp"],
-                    track_id=row["track_id"],
-                    person_id=row["person_id"],
-                    camera_id=row["camera_id"],
-                    zone_id=row["zone_id"],
-                    previous_zone_id=row["previous_zone_id"],
-                    confidence=row["confidence"],
-                    coordinates_json=row["coordinates_json"],
-                    payload_json=row["payload_json"],
-                    created_at=row["created_at"],
-                )
-                for row in cur.fetchall()
-            ]
+            return [self._row_to_event(row) for row in cur.fetchall()]
+
+    @staticmethod
+    def _row_to_event(row: sqlite3.Row) -> TwinEvent:
+        return TwinEvent(
+            sequence_num=row["sequence_num"],
+            event_id=row["event_id"],
+            event_type=row["event_type"],
+            timestamp=row["timestamp"],
+            track_id=row["track_id"],
+            person_id=row["person_id"],
+            camera_id=row["camera_id"],
+            zone_id=row["zone_id"],
+            previous_zone_id=row["previous_zone_id"],
+            confidence=row["confidence"],
+            coordinates_json=row["coordinates_json"],
+            payload_json=row["payload_json"],
+            created_at=row["created_at"],
+        )
 
     # -------------------------------------------------------------------------
     # Incidents
     # -------------------------------------------------------------------------
     def insert_incident(self, incident: Incident) -> None:
-        """Insert or replace a security incident record."""
+        """Insert or replace a security incident record (time fields normalised to canonical UTC)."""
+        incident.start_time = canonical_utc(incident.start_time)
+        incident.created_at = canonical_utc(incident.created_at)
+        incident.updated_at = canonical_utc(incident.updated_at)
+        if incident.end_time:
+            incident.end_time = canonical_utc(incident.end_time)
         with self._lock, self.get_connection() as conn:
             conn.execute(
                 """
@@ -472,6 +536,108 @@ class TwinStore:
                 params,
             )
             return [self._row_to_incident(row) for row in cur.fetchall()]
+
+    def get_active_incidents(self) -> List[Incident]:
+        """ALL incidents with status OPEN or INVESTIGATING (no limit), oldest first."""
+        with self.get_connection() as conn:
+            cur = conn.execute(
+                "SELECT * FROM incidents WHERE status IN ('OPEN', 'INVESTIGATING') ORDER BY start_time ASC;"
+            )
+            return [self._row_to_incident(row) for row in cur.fetchall()]
+
+    def count_incidents(
+        self,
+        status: Optional[str] = None,
+        severity: Optional[str] = None,
+        zone_id: Optional[str] = None,
+    ) -> int:
+        """Total number of incidents matching the same filters as get_incidents (ignores limit)."""
+        clauses, params = [], []
+        for column, value in (("status", status), ("severity", severity), ("zone_id", zone_id)):
+            if value:
+                clauses.append(f"{column} = ?")
+                params.append(value)
+        where_sql = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        with self.get_connection() as conn:
+            return conn.execute(f"SELECT COUNT(*) FROM incidents {where_sql};", params).fetchone()[0]
+
+    def get_events_ascending(
+        self,
+        track_id: Optional[str] = None,
+        event_types: Optional[List[str]] = None,
+        start_time: Optional[str] = None,
+        end_time: Optional[str] = None,
+        zone_id: Optional[str] = None,
+        track_ids: Optional[List[str]] = None,
+    ) -> List[TwinEvent]:
+        """ALL matching events in ledger order (sequence_num ASC), no limit.
+
+        For history computations that must not silently drop old events. Time bounds are
+        inclusive and normalised to canonical UTC (ValueError on malformed input).
+        """
+        clauses: List[str] = []
+        params: List[Any] = []
+        if track_id:
+            clauses.append("track_id = ?")
+            params.append(track_id)
+        if track_ids:
+            clauses.append(f"track_id IN ({', '.join('?' for _ in track_ids)})")
+            params.extend(track_ids)
+        if zone_id:
+            clauses.append("zone_id = ?")
+            params.append(zone_id)
+        if event_types:
+            clauses.append(f"event_type IN ({', '.join('?' for _ in event_types)})")
+            params.extend(event_types)
+        if start_time:
+            clauses.append("timestamp >= ?")
+            params.append(canonical_utc(start_time))
+        if end_time:
+            clauses.append("timestamp <= ?")
+            params.append(canonical_utc(end_time))
+        where_sql = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        with self.get_connection() as conn:
+            cur = conn.execute(f"SELECT * FROM events {where_sql} ORDER BY sequence_num ASC;", params)
+            return [self._row_to_event(row) for row in cur.fetchall()]
+
+    # -------------------------------------------------------------------------
+    # AI investigations (append-only audit of every Bedrock investigation)
+    # -------------------------------------------------------------------------
+    _INVESTIGATION_COLUMNS = (
+        "investigation_id", "incident_id", "created_at", "status", "model_id", "question",
+        "result_json", "raw_output", "verification_json", "evidence_event_count",
+        "input_tokens", "output_tokens", "cost_usd", "latency_ms", "error",
+    )
+
+    def insert_investigation(self, record: Dict[str, Any]) -> None:
+        """Persist one investigation record (keys = _INVESTIGATION_COLUMNS)."""
+        row = dict(record)
+        row["created_at"] = canonical_utc(row["created_at"])
+        cols = self._INVESTIGATION_COLUMNS
+        with self._lock, self.get_connection() as conn:
+            conn.execute(
+                f"INSERT INTO investigations ({', '.join(cols)}) VALUES ({', '.join('?' for _ in cols)});",
+                [row.get(c) for c in cols],
+            )
+            conn.commit()
+
+    def get_investigations(self, incident_id: str) -> List[Dict[str, Any]]:
+        """All investigations for an incident, newest first."""
+        with self.get_connection() as conn:
+            cur = conn.execute(
+                "SELECT * FROM investigations WHERE incident_id = ? ORDER BY created_at DESC;",
+                (incident_id,),
+            )
+            return [dict(row) for row in cur.fetchall()]
+
+    def sum_investigation_cost_since(self, since_iso: str) -> float:
+        """Total Bedrock spend (USD) of investigations created at or after since_iso."""
+        with self.get_connection() as conn:
+            cur = conn.execute(
+                "SELECT COALESCE(SUM(cost_usd), 0) FROM investigations WHERE created_at >= ?;",
+                (canonical_utc(since_iso),),
+            )
+            return float(cur.fetchone()[0])
 
     # -------------------------------------------------------------------------
     # Snapshots (Checkpoints with Checksum)

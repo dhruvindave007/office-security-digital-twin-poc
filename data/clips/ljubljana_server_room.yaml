@@ -1,0 +1,8 @@
+name: ljubljana_server_room
+description: "Restricted-zone demo: same footage played as the server-room camera (expect UNAUTHORIZED_ENTRY + ACCESS_WITHOUT_BADGE per track, ZONE_OVER_CAPACITY above 3 people)."
+video_file: ljubljana_pedestrian.webm
+camera_id: cam_server_01
+base_time_utc: "2026-01-20T11:00:00Z"
+process_fps: 5.0
+max_frames: null
+source_note: 'Wikimedia Commons "Pedestrian area Ljubljana.webm" by Sounds of Change, CC BY 3.0 (attribution required). https://commons.wikimedia.org/wiki/File:Pedestrian_area_Ljubljana.webm'

@@ -1,0 +1,17 @@
+name: badge_without_entry
+description: "Badge swipe granted at server room door but no one enters; periodic sweep generates incident."
+base_time_utc: "2026-01-15T10:00:00Z"
+steps:
+  - t: 0.0
+    kind: access
+    door_id: door_server_01
+    badge_id: badge_0002
+    result: GRANTED
+
+  - t: 30.0
+    kind: observation
+    camera_id: cam_workspace_01
+    track_id: sim_trk_other
+    person_id: null
+    floor: [20.0, 8.0]
+    confidence: 0.94

@@ -1,0 +1,241 @@
+{
+ "site": "WiseNET I3M building, floor R+3 (Universite de Bourgogne)",
+ "license": "CC BY-NC-SA 4.0 - internal, non-commercial validation only; cite Marroquin et al. 2019 (Data in Brief 27:104654)",
+ "units": "metres, IFC plan coordinates of floor R+3",
+ "calibrated_at": "2026-10-14",
+ "method": "manual point correspondences: floor/wall corners and door-frame bases read from zoomed frames, matched to IFC door jamb and space-boundary coordinates; cv2.findHomography least squares",
+ "cameras": {
+  "cam_1": {
+   "space": "s1",
+   "mode": "metric",
+   "image_size": [
+    1280,
+    720
+   ],
+   "pixel_to_floor_H": [
+    [
+     -0.2898212647634558,
+     -3.562509360033924,
+     1119.1972537293786
+    ],
+    [
+     -0.9149304221698167,
+     -1.3457467299272723,
+     247.11622685071364
+    ],
+    [
+     -0.0283877746920321,
+     -0.34018930385099916,
+     1.0
+    ]
+   ],
+   "points": [
+    [
+     [
+      320,
+      472
+     ],
+     [
+      3.884,
+      4.037
+     ]
+    ],
+    [
+     [
+      657,
+      445
+     ],
+     [
+      3.884,
+      5.637
+     ]
+    ],
+    [
+     [
+      782,
+      610
+     ],
+     [
+      5.599,
+      5.637
+     ]
+    ],
+    [
+     [
+      326,
+      646
+     ],
+     [
+      5.599,
+      4.037
+     ]
+    ]
+   ],
+   "note": "4th point estimated by parallel-line construction (no visible marker on the south wall).",
+   "zone_id": "zone_corridor"
+  },
+  "cam_2": {
+   "space": "s1",
+   "mode": "metric",
+   "image_size": [
+    1280,
+    720
+   ],
+   "pixel_to_floor_H": [
+    [
+     -0.013235156264216678,
+     -0.1844023694026227,
+     47.29636951217838
+    ],
+    [
+     -0.016384781443229506,
+     -0.020257944106192444,
+     6.544706549078685
+    ],
+    [
+     -0.0009974945910698352,
+     -0.005230498481057947,
+     1.0
+    ]
+   ],
+   "trusted_min_foot_v": 275,
+   "points": [
+    [
+     [
+      550,
+      552
+     ],
+     [
+      25.258,
+      5.637
+     ]
+    ],
+    [
+     [
+      632,
+      645
+     ],
+     [
+      26.788,
+      5.637
+     ]
+    ],
+    [
+     [
+      452,
+      432
+     ],
+     [
+      22.275,
+      5.637
+     ]
+    ],
+    [
+     [
+      240,
+      515
+     ],
+     [
+      26.312,
+      4.037
+     ]
+    ],
+    [
+     [
+      242,
+      537
+     ],
+     [
+      26.788,
+      4.037
+     ]
+    ],
+    [
+     [
+      220,
+      252
+     ],
+     [
+      3.884,
+      4.037
+     ]
+    ],
+    [
+     [
+      293,
+      248
+     ],
+     [
+      3.884,
+      5.637
+     ]
+    ],
+    [
+     [
+      311,
+      260
+     ],
+     [
+      7.129,
+      5.637
+     ]
+    ],
+    [
+     [
+      362,
+      316
+     ],
+     [
+      15.653,
+      5.637
+     ]
+    ]
+   ],
+   "note": "Feet above image row 275 (about >15 m away) are used at room level only.",
+   "zone_id": "zone_corridor"
+  },
+  "cam_3": {
+   "space": "s3",
+   "mode": "room",
+   "note": "Cluttered room: no reliable floor markers; room-level + door regions.",
+   "zone_id": "zone_vision_lab"
+  },
+  "cam_4": {
+   "space": "s2",
+   "mode": "room",
+   "note": "Cluttered room: room-level + door regions.",
+   "zone_id": "zone_workroom"
+  },
+  "cam_5": {
+   "space": "s2",
+   "mode": "room",
+   "note": "Cluttered room: room-level + door regions.",
+   "zone_id": "zone_workroom"
+  },
+  "cam_6": {
+   "space": "s4",
+   "mode": "room",
+   "note": "Only in sets 10-11 (640x480). Room-level + door regions.",
+   "zone_id": "zone_print_room"
+  }
+ },
+ "validation": {
+  "cam_1_and_cam_2_anchor_fit_m": {
+   "cam_1_median": 0.0,
+   "cam_2_median": 0.08,
+   "cam_2_max": 0.16
+  },
+  "cross_camera_same_person_same_moment": {
+   "pairs": 556,
+   "held_out_sets": [
+    2,
+    4,
+    6
+   ],
+   "median_m": 2.27,
+   "p90_m": 3.5,
+   "where": "west end of the corridor: about 2-4 m from cam_1 and 23-27 m from cam_2 (cam_2 worst case)"
+  },
+  "known_limit": "Single homography cannot satisfy both anchors and far-range cross-camera data for cam_2: lens distortion (wide-angle). Fix on site: checkerboard lens calibration before the homography."
+ }
+}

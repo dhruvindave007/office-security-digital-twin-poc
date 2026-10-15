@@ -30,6 +30,12 @@ steps:
     floor: [25.0, 8.0]
     confidence: 0.96
 
+  - t: 27.0
+    kind: access
+    door_id: door_server_01
+    badge_id: badge_0001
+    result: GRANTED
+
   - t: 30.0
     camera_id: cam_server_01
     track_id: trk_admin_01

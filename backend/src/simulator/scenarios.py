@@ -1,43 +1,66 @@
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
+import logging
+
 import yaml
 
 try:
-    from src.vision.seed import _resolve_data_path
+    from src.core.paths import _resolve_data_path
 except ImportError:
-    from vision.seed import _resolve_data_path
+    from core.paths import _resolve_data_path
+
+logger = logging.getLogger("office_vision.simulator.scenarios")
 
 
 @dataclass
 class ScenarioStep:
-    """Individual observation step within a scenario definition."""
+    """Individual observation or access-control step within a scenario definition."""
 
     t: float
-    camera_id: str
-    track_id: str
-    floor: List[float]
+    kind: str = "observation"
+    # Observation fields:
+    camera_id: Optional[str] = None
+    track_id: Optional[str] = None
+    floor: Optional[List[float]] = None
     confidence: float = 1.0
     person_id: Optional[str] = None
+    # Access fields:
+    door_id: Optional[str] = None
+    badge_id: Optional[str] = None
+    result: Optional[str] = None
 
     def __post_init__(self) -> None:
-        if not self.camera_id or not str(self.camera_id).strip():
-            raise ValueError("ScenarioStep camera_id cannot be empty.")
-        if not self.track_id or not str(self.track_id).strip():
-            raise ValueError("ScenarioStep track_id cannot be empty.")
-        if not isinstance(self.floor, (list, tuple)) or len(self.floor) != 2:
-            raise ValueError(f"ScenarioStep floor coordinates must be a list of 2 numbers [x, y], got {self.floor}.")
-        try:
-            self.floor = [float(self.floor[0]), float(self.floor[1])]
-        except (ValueError, TypeError) as e:
-            raise ValueError(f"ScenarioStep floor coordinates must contain numbers, got {self.floor}") from e
         self.t = float(self.t)
         self.confidence = float(self.confidence)
+        self.kind = str(self.kind).strip().lower()
+
+        if self.kind == "observation":
+            if not self.camera_id or not str(self.camera_id).strip():
+                raise ValueError("ScenarioStep camera_id cannot be empty.")
+            if not self.track_id or not str(self.track_id).strip():
+                raise ValueError("ScenarioStep track_id cannot be empty.")
+            if not isinstance(self.floor, (list, tuple)) or len(self.floor) != 2:
+                raise ValueError(f"ScenarioStep floor coordinates must be a list of 2 numbers [x, y], got {self.floor}.")
+            try:
+                self.floor = [float(self.floor[0]), float(self.floor[1])]
+            except (ValueError, TypeError) as e:
+                raise ValueError(f"ScenarioStep floor coordinates must contain numbers, got {self.floor}") from e
+        elif self.kind == "access":
+            if not self.door_id or not str(self.door_id).strip():
+                raise ValueError("ScenarioStep door_id cannot be empty for access step.")
+            if not self.badge_id or not str(self.badge_id).strip():
+                raise ValueError("ScenarioStep badge_id cannot be empty for access step.")
+            if not self.result or str(self.result).strip().upper() not in ("GRANTED", "DENIED"):
+                raise ValueError(f"ScenarioStep result must be 'GRANTED' or 'DENIED' for access step, got '{self.result}'.")
+            self.result = str(self.result).strip().upper()
+        else:
+            raise ValueError(f"Unknown scenario step kind '{self.kind}'. Must be 'observation' or 'access'.")
 
 
 @dataclass
 class Scenario:
-    """Complete security scenario definition consisting of time-ordered observation steps."""
+    """Complete security scenario definition consisting of time-ordered observation/access steps."""
 
     name: str
     description: str
@@ -81,11 +104,15 @@ def load_scenario(path: Union[str, Path]) -> Scenario:
         steps.append(
             ScenarioStep(
                 t=s.get("t", 0.0),
-                camera_id=s.get("camera_id", ""),
-                track_id=s.get("track_id", ""),
-                floor=s.get("floor", []),
+                kind=s.get("kind", "observation"),
+                camera_id=s.get("camera_id"),
+                track_id=s.get("track_id"),
+                floor=s.get("floor"),
                 confidence=s.get("confidence", 1.0),
                 person_id=s.get("person_id"),
+                door_id=s.get("door_id"),
+                badge_id=s.get("badge_id"),
+                result=s.get("result"),
             )
         )
 
@@ -107,8 +134,9 @@ def list_scenarios(dir_path: Union[str, Path] = "data/scenarios") -> List[Scenar
     for yaml_file in sorted(resolved_dir.glob("*.yaml")):
         try:
             scenarios.append(load_scenario(yaml_file))
-        except Exception:
-            # Skip invalid scenarios or re-raise if desirable; load all valid
+        except Exception as e:
+            # Keep listing the valid ones, but never hide a broken file silently.
+            logger.warning("Skipping invalid scenario file %s: %s", yaml_file, e)
             continue
 
     return scenarios
