@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional
 
 from .config import LiveConfig, load_live_config
+from .badge_replay import BadgeReplayer
 from .entry_gate import EntryGate
 from .projector import SiteProjector
 from .source import FrameSource
@@ -16,7 +17,7 @@ _COLORS = [(66, 135, 245), (12, 83, 201), (82, 196, 103), (18, 156, 226), (180, 
 
 class LiveManager:
     def __init__(self, settings, twin_engine, rule_engine,
-                 tracker_builder: Optional[Callable[[Any], Any]] = None, source_factory=None):
+                 tracker_builder: Optional[Callable[[Any], Any]] = None, source_factory=None, access_service=None):
         self.settings = settings
         self.twin = twin_engine
         self.rules = rule_engine
@@ -31,6 +32,8 @@ class LiveManager:
         self.incident_listeners: List[Callable[[List[Any]], None]] = []
         self._jpeg_cache: Dict[str, Any] = {}
         self._saved_hooks = None
+        self.access_service = access_service
+        self.badge_replayer: Optional[BadgeReplayer] = None
 
     def _default_tracker(self, cam):
         try:
@@ -74,6 +77,10 @@ class LiveManager:
             for w in workers.values():
                 w.source.start()
                 w.start()
+            br = cfg.badge_replay
+            if br and self.access_service is not None and br.get("camera_id") in workers:
+                self.badge_replayer = BadgeReplayer(workers[br["camera_id"]].source, self.access_service, br.get("swipes", []))
+                self.badge_replayer.start()
             self.config, self.config_path, self.workers = cfg, path, workers
             self.started_at = datetime.now(timezone.utc).isoformat()
             logger.info("live: started %d cameras from %s", len(workers), path)
@@ -82,6 +89,9 @@ class LiveManager:
     def stop(self) -> Dict[str, Any]:
         with self._lock:
             workers, self.workers = self.workers, {}
+        if self.badge_replayer is not None:
+            self.badge_replayer.stop()
+            self.badge_replayer = None
         for w in workers.values():
             w.source.stop()
         for w in workers.values():
@@ -103,6 +113,8 @@ class LiveManager:
         busy = [c for c in cams if c["state"] == "running" and c["detect"]]
         return {"running": self.running, "config_path": self.config_path, "started_at": self.started_at,
                 "process_fps": self.config.process_fps if self.config else None,
+                "badge_replay": ({"swipes_fired": self.badge_replayer.fired, "last_error": self.badge_replayer.last_error}
+                                 if self.badge_replayer else None),
                 "cameras": cams,
                 "totals": {"cameras": len(cams), "live": sum(1 for c in cams if c["source"]["state"] == "live"),
                            "people_in_view": sum(c["people_in_view"] for c in cams),

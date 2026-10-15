@@ -89,6 +89,21 @@ def test_source_reconnects_after_stream_failure():
     assert len(opens) >= 2 and src.state == "stopped"   # opened again after each failure
 
 
+def test_degraded_network_stream_is_reopened():
+    """A stream delivering under half its own frame rate for 6 s is reconnected (seen live at ~3 of 25 fps)."""
+    class SlowCap(FakeCap):
+        def read(self):
+            time.sleep(0.03)                    # ~30 fps delivered of a nominal 100
+            return super().read()
+    opens = []
+    src = FrameSource("c", "rtsp://cam/stream", max_backoff_s=0.05,
+                      open_fn=lambda u: (opens.append(1), SlowCap(fps=100.0))[1])
+    src.start()
+    assert _wait(lambda: len(opens) >= 2, timeout=12)
+    src.stop()
+    assert src.reconnects >= 1
+
+
 def test_redact_hides_camera_password():
     assert _redact("rtsp://admin:s3cret@10.0.0.5:554/ch1") == "rtsp://***@10.0.0.5:554/ch1"
     assert "s3cret" not in str(FrameSource("c", "rtsp://admin:s3cret@10.0.0.5/x").status())

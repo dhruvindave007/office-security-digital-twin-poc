@@ -4,7 +4,7 @@
 # system sees exactly what a live camera would give it (frames arriving in real time, stamped with
 # the wall clock). For real cameras replace `url` with the camera's stream, e.g.
 #   rtsp://user:password@192.168.1.64:554/Streaming/Channels/102   (sub-stream, 640x480 is plenty)
-# or the replay-as-RTSP server (scripts/replay_as_rtsp.ps1): rtsp://127.0.0.1:8554/cam_1
+# or use live_rtsp.yaml with scripts/replay_as_rtsp.py (streams over RTSP like real cameras).
 #
 # Only one camera per room feeds the twin (no cross-camera re-identification yet, so a person seen by
 # two cameras would be counted twice); the others are detected and shown on the wall only.
@@ -26,3 +26,11 @@ cameras:
 # (~1 s); the decision is made when the late-badge tolerance (5 s) has passed.
 entry_gates:
   cam_3: {roi: [219, 26, 94, 145], image_size: [640, 480], margin_frac: 0.33, min_sightings: 5}
+
+# DEMO ONLY: the recordings have no badge reader. One valid swipe (badge_1003, the lab lead) 2 s
+# before the first real entry of each 40 s loop; the 13 people following it are then tailgaters or
+# no-badge entrants (ground truth: 9 of them within 10 s). Offsets are from the start of cam_3's video.
+badge_replay:
+  camera_id: cam_3
+  swipes:
+    - {offset_s: 20.2, door_id: door_d4, badge_id: badge_1003, result: GRANTED}

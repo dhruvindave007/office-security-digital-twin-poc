@@ -54,6 +54,13 @@ class UltralyticsPersonTracker(PersonTracker):
             import yaml
             self.imgsz = (yaml.safe_load(meta.read_text(encoding="utf-8")) or {}).get("imgsz")
 
+    def warmup(self) -> None:
+        """Run one throw-away inference so model compilation (OpenVINO: seconds) happens before live use."""
+        import numpy as np
+        h, w = (self.imgsz if isinstance(self.imgsz, (list, tuple)) else (self.imgsz or 640,) * 2)[:2]
+        self._model.predict(np.zeros((int(h), int(w), 3), np.uint8), device=self.device, verbose=False,
+                            **({"imgsz": self.imgsz} if self.imgsz else {}))
+
     def reset(self) -> None:
         """Reset tracker state by instantiating a fresh YOLO model instance from the weights path (Option B)."""
         self._load_yolo()

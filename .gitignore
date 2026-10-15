@@ -79,3 +79,4 @@ backend/evals/investigation/results/
 data/sites/*/runs/*.json
 data/sites/*/runs/*.mp4
 !data/sites/*/runs/validation.json
+tools/
