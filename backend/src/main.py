@@ -15,6 +15,7 @@ try:
     from src.api.routes_investigation import router as investigation_router
     from src.api.routes_live import evidence_router, router as live_router
     from src.api.routes_simulator import router as simulator_router
+    from src.api.routes_site import router as site_router
     from src.api.routes_stream import Broadcaster, router as stream_router
     from src.api.routes_twin import _row_to_incident_response
     from src.api.routes_system import router as system_router
@@ -31,6 +32,7 @@ except ImportError:
     from api.routes_investigation import router as investigation_router
     from api.routes_live import evidence_router, router as live_router
     from api.routes_simulator import router as simulator_router
+    from api.routes_site import router as site_router
     from api.routes_stream import Broadcaster, router as stream_router
     from api.routes_twin import _row_to_incident_response
     from api.routes_system import router as system_router
@@ -185,6 +187,7 @@ app.include_router(simulator_router)
 app.include_router(live_router)
 app.include_router(evidence_router)
 app.include_router(stream_router)
+app.include_router(site_router)
 
 
 @app.get("/health", tags=["System"])

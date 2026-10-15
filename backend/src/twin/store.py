@@ -403,6 +403,15 @@ class TwinStore:
             ]
             return events, total
 
+    def get_events_by_ids(self, event_ids: List[str]) -> List[TwinEvent]:
+        """Fetch specific ledger events (e.g. an incident's supporting events), in ledger order."""
+        if not event_ids:
+            return []
+        marks = ",".join("?" for _ in event_ids)
+        with self.get_connection() as conn:
+            cur = conn.execute(f"SELECT * FROM events WHERE event_id IN ({marks}) ORDER BY sequence_num ASC;", list(event_ids))
+            return [self._row_to_event(r) for r in cur.fetchall()]
+
     def get_events_since(self, sequence_num: int) -> List[TwinEvent]:
         """Fetch all events strictly greater than sequence_num in ascending order (for replay)."""
         with self.get_connection() as conn:
