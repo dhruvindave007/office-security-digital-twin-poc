@@ -49,7 +49,15 @@ def live_frame(camera_id: str, request: Request, annotated: bool = True, width: 
     data = mgr.jpeg(camera_id, annotated=annotated, max_width=max(160, min(width, 1920)))
     if data is None:
         raise HTTPException(status_code=503, detail=f"No picture from {camera_id} yet")
-    return Response(content=data, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
+    # The last picture is served even when the stream has stopped delivering: say how old it is, so a
+    # frozen picture is never mistaken for a live one.
+    headers = {"Cache-Control": "no-store", "Access-Control-Expose-Headers": "X-Frame-Captured-At, X-Frame-Age-Ms"}
+    taken = mgr.picture_time(camera_id)
+    if taken is not None:
+        from datetime import datetime, timezone
+        headers["X-Frame-Captured-At"] = taken.isoformat()
+        headers["X-Frame-Age-Ms"] = str(max(0, int((datetime.now(timezone.utc) - taken).total_seconds() * 1000)))
+    return Response(content=data, media_type="image/jpeg", headers=headers)
 
 
 @router.get("/cameras/{camera_id}/mjpeg")

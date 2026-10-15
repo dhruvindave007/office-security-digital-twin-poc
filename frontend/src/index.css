@@ -2,14 +2,27 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  color-scheme: dark;
-}
+:root { color-scheme: dark; }
 
+html, body, #root { height: 100%; }
 body {
   margin: 0;
-  min-height: 100vh;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-  background-color: #020617;
-  color: #f8fafc;
+  background: #0a0c0f;
+  color: #d6dbe1;
+  font-family: "Segoe UI", Inter, system-ui, -apple-system, sans-serif;
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
 }
+
+/* numbers that update in place must not jiggle */
+.tnum { font-variant-numeric: tabular-nums; }
+
+/* one visible focus style everywhere */
+:focus-visible { outline: 2px solid #7cc4ff; outline-offset: 1px; }
+
+/* thin scrollbars that fit the surface */
+* { scrollbar-width: thin; scrollbar-color: #2d3540 transparent; }
+
+.label { font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: #8d96a2; font-weight: 600; }
+
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
