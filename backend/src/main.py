@@ -96,7 +96,7 @@ async def lifespan(app: FastAPI):
     app.state.clip_job_manager = runtime.clip_job_manager
     app.state.tracker_factory = runtime.tracker_factory
     app.state.investigation_service = runtime.investigation_service
-    live_manager = LiveManager(settings, twin_engine, runtime.rule_engine)
+    live_manager = LiveManager(settings, twin_engine, runtime.rule_engine, access_service=runtime.access_service)
     app.state.live_manager = live_manager
     if settings.live_autostart and settings.live_config_path:
         try:

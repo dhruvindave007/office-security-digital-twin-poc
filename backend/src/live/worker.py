@@ -84,6 +84,8 @@ class CameraWorker:
             if self.cfg.detect and self.tracker_factory is not None:
                 self.state = "loading_model"
                 self.tracker = self.tracker_factory()
+                if hasattr(self.tracker, "warmup"):
+                    self.tracker.warmup()
             self.state = "running"
         except Exception as e:
             self.state, self.last_error = "error", f"model load failed: {e}"

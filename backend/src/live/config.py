@@ -26,6 +26,9 @@ class LiveConfig:
     calibration_path: Optional[str] = None
     # Badge-door entry gates per camera: {camera_id: {roi: [x,y,w,h], image_size: [w,h], margin_frac, min_sightings}}
     entry_gates: Dict[str, Dict] = field(default_factory=dict)
+    # Demo only: badge swipes replayed in step with a replayed video (seconds after each loop start):
+    # {camera_id: cam_3, swipes: [{offset_s: 20.2, door_id: door_d4, badge_id: badge_1003, result: GRANTED}]}
+    badge_replay: Optional[Dict] = None
     base_dir: Path = field(default_factory=Path)
 
     def camera(self, camera_id: str) -> Optional[LiveCameraConfig]:
@@ -48,4 +51,5 @@ def load_live_config(path: str) -> LiveConfig:
         cal = str((p.parent / cal).resolve())
     return LiveConfig(cameras=cams, process_fps=float(raw.get("process_fps", 5.0)),
                       track_exit_seconds=float(raw.get("track_exit_seconds", 2.0)),
-                      calibration_path=cal, entry_gates=dict(raw.get("entry_gates") or {}), base_dir=p.parent)
+                      calibration_path=cal, entry_gates=dict(raw.get("entry_gates") or {}),
+                      badge_replay=raw.get("badge_replay"), base_dir=p.parent)
