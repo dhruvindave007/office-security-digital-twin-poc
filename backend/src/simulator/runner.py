@@ -5,6 +5,7 @@ from typing import Dict, List, Optional
 
 try:
     from src.access.service import AccessControlService
+    from src.core.locks import TWIN_WRITE_LOCK
     from src.rules.policy import parse_utc_timestamp
     from src.simulator.scenarios import Scenario
     from src.vision.calibration import HomographyManager
@@ -12,6 +13,7 @@ try:
     from src.vision.pipeline import ObservationPipeline
 except ImportError:
     from access.service import AccessControlService
+    from core.locks import TWIN_WRITE_LOCK
     from rules.policy import parse_utc_timestamp
     from simulator.scenarios import Scenario
     from vision.calibration import HomographyManager
@@ -48,7 +50,12 @@ class ScenarioRunner:
 
     def run(self, scenario: Scenario) -> ScenarioRunResult:
         """Run all steps of a scenario synchronously as fast as possible (no sleep)."""
-        base_dt = parse_utc_timestamp(scenario.base_time_utc)
+        # "now": play the scenario at the current time (e.g. alongside live cameras, so its incidents
+        # line up with live video and evidence); otherwise the fixed historical base time.
+        if str(scenario.base_time_utc).strip().lower() == "now":
+            base_dt = datetime.now(timezone.utc)
+        else:
+            base_dt = parse_utc_timestamp(scenario.base_time_utc)
 
         steps_processed = 0
         events_emitted = 0
@@ -85,6 +92,23 @@ class ScenarioRunner:
                         if inc.incident_id not in unique_incidents:
                             unique_incidents.append(inc.incident_id)
 
+                elif not self.homography_manager.has_camera(step.camera_id):
+                    # Site cameras without a pixel homography here (e.g. room-level WiseNET cameras):
+                    # the step already gives the floor position, so feed the twin directly.
+                    twin = self.pipeline.twin_engine
+                    rules = self.pipeline.rule_engine
+                    with TWIN_WRITE_LOCK:
+                        evs = twin.ingest_observation(
+                            track_id=step.track_id, camera_id=step.camera_id, x=step.floor[0], y=step.floor[1],
+                            timestamp=timestamp, confidence=step.confidence, person_id=step.person_id)
+                        raised = rules.evaluate(evs) if rules is not None else []
+                    steps_processed += 1
+                    for evt in evs:
+                        events_emitted += 1
+                        event_type_counts[evt.event_type] = event_type_counts.get(evt.event_type, 0) + 1
+                    for inc in raised:
+                        if inc.incident_id not in unique_incidents:
+                            unique_incidents.append(inc.incident_id)
                 else:
                     # 1. Project floor coordinate -> camera pixel space (u, v)
                     floor_pt = FloorPoint(x=step.floor[0], y=step.floor[1])
