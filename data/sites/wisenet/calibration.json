@@ -71,7 +71,8 @@
      ]
     ]
    ],
-   "note": "4th point estimated by parallel-line construction (no visible marker on the south wall)."
+   "note": "4th point estimated by parallel-line construction (no visible marker on the south wall).",
+   "zone_id": "zone_corridor"
   },
   "cam_2": {
    "space": "s1",
@@ -190,27 +191,32 @@
      ]
     ]
    ],
-   "note": "Feet above image row 275 (about >15 m away) are used at room level only."
+   "note": "Feet above image row 275 (about >15 m away) are used at room level only.",
+   "zone_id": "zone_corridor"
   },
   "cam_3": {
    "space": "s3",
    "mode": "room",
-   "note": "Cluttered room: no reliable floor markers; room-level + door regions."
+   "note": "Cluttered room: no reliable floor markers; room-level + door regions.",
+   "zone_id": "zone_vision_lab"
   },
   "cam_4": {
    "space": "s2",
    "mode": "room",
-   "note": "Cluttered room: room-level + door regions."
+   "note": "Cluttered room: room-level + door regions.",
+   "zone_id": "zone_workroom"
   },
   "cam_5": {
    "space": "s2",
    "mode": "room",
-   "note": "Cluttered room: room-level + door regions."
+   "note": "Cluttered room: room-level + door regions.",
+   "zone_id": "zone_workroom"
   },
   "cam_6": {
    "space": "s4",
    "mode": "room",
-   "note": "Only in sets 10-11 (640x480). Room-level + door regions."
+   "note": "Only in sets 10-11 (640x480). Room-level + door regions.",
+   "zone_id": "zone_print_room"
   }
  },
  "validation": {

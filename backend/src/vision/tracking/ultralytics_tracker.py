@@ -46,6 +46,13 @@ class UltralyticsPersonTracker(PersonTracker):
             raise RuntimeError("Vision extra not installed: uv pip install -e .[vision]") from e
 
         self._model = YOLO(self.weights_path)
+        # Exported models (OpenVINO) have a fixed input shape, e.g. 480x640 for 4:3 cameras (25% less
+        # work than padding to 640x640). Run inference at that shape; .pt models keep Ultralytics' default.
+        self.imgsz = None
+        meta = Path(self.weights_path) / "metadata.yaml"
+        if meta.is_file():
+            import yaml
+            self.imgsz = (yaml.safe_load(meta.read_text(encoding="utf-8")) or {}).get("imgsz")
 
     def reset(self) -> None:
         """Reset tracker state by instantiating a fresh YOLO model instance from the weights path (Option B)."""
@@ -61,6 +68,7 @@ class UltralyticsPersonTracker(PersonTracker):
             conf=self.min_confidence,
             device=self.device,
             verbose=False,
+            **({"imgsz": self.imgsz} if self.imgsz else {}),
         )
 
         if not results:

@@ -15,6 +15,7 @@ from shapely.geometry import Polygon  # noqa: E402
 from src.access.config import load_access_config  # noqa: E402
 from src.access.service import AccessControlService  # noqa: E402
 from src.core.timeutil import canonical_utc  # noqa: E402
+from src.live.entry_gate import EntryGate  # noqa: E402
 from src.rules.correlation import CorrelationEngine  # noqa: E402
 from src.rules.engine import IncidentRuleEngine  # noqa: E402
 from src.rules.policy import load_access_policy  # noqa: E402
@@ -48,31 +49,18 @@ def run(set_n, investigate=False):
     policy = load_access_policy(str(W.SITE / "access_policy.yaml"))
     access = load_access_config(str(W.SITE / "doors.yaml"))
     dets = json.loads((W.SITE / "runs" / f"set_{set_n}_yolo11s_detections.json").read_text())
-    # A real door entry starts AT the door: a track whose first sighting is elsewhere in the room is a
-    # re-acquired (broken) track, not someone walking in. Door region from the dataset's cam_3 calibration.
-    # The dataset has one calibration per recording resolution (camera 3 was also mounted differently).
+    # A real door entry starts AT the door and is tracked continuously (src/live/entry_gate.py).
+    # The gate only uses what was seen up to each decision, exactly as in live operation.
+    # The dataset has one door region per recording resolution (camera 3 was also mounted differently).
     res = f"{W.set_info(set_n)['w']}_{W.set_info(set_n)['h']}"
     roi = json.loads((W.DATA / "network_enviroment" / "camera_calibration" / res / "cam_3.json").read_text())["regionsOfInterest"][0]["xywh"]
-    first_box, sightings = {}, {}
-    for d in dets.get("cam_3", []):
-        first_box.setdefault(d["id"], d["box"])
-        sightings[d["id"]] = sightings.get(d["id"], 0) + 1
-
-    def at_door(event):
-        if event.camera_id != "cam_3":
-            return True
-        tid = int(event.track_id.rsplit(":", 1)[1])
-        x, y, w, h = first_box.get(tid, (0, 0, 0, 0))
-        rx, ry, rw, rh = roi
-        m = rw * 0.33  # margin scales with the recording resolution
-        at_door_first = not (x + w < rx - m or x > rx + rw + m or y + h < ry or y > ry + rh + m)
-        # A real entry is tracked continuously; 2-3 sighting blips are the tracker losing and re-finding
-        # someone. Live, this means deciding ~1 s (5 sightings at 5 fps) after the first sighting.
-        return at_door_first and sightings.get(tid, 0) >= 5
+    gate = EntryGate({"cam_3": {"roi": roi, "image_size": [W.set_info(set_n)["w"], W.set_info(set_n)["h"]],
+                                "margin_frac": 0.33, "min_sightings": 5}})
 
     rules = IncidentRuleEngine(eng.store, eng.state, policy,
                                correlation=CorrelationEngine(policy=policy, access_config=access, topology=_NoTopology(),
-                                                             store=eng.store, entry_filter=at_door))
+                                                             store=eng.store,
+                                                             entry_filter=gate.entry_filter, entry_confirm=gate.entry_confirm))
     badges = AccessControlService(eng.store, access, rule_engine=rules)
     info, cal = W.set_info(set_n), W.load_calibration()
     verts = eng.store.get_all_vertices_by_zone()
@@ -89,6 +77,7 @@ def run(set_n, investigate=False):
             continue
         cam, d = payload
         x, y, _ = W.floor_point(cam, d["box"], (info["w"], info["h"]), cal, room_pt)
+        gate.observe(cam, f"{cam}:set{set_n}:{d['id']}", d["box"], (info["w"], info["h"]))
         incidents += rules.evaluate(eng.ingest_observation(f"{cam}:set{set_n}:{d['id']}", cam, x, y, t, d["conf"]))
         if t != last:
             lost = eng.prune_tracks(now_iso=t, ttl_seconds=2.0)

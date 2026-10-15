@@ -52,11 +52,16 @@ class CorrelationEngine:
         topology: "TopologyService",
         store: TwinStore,
         entry_filter: Optional[Callable[[TwinEvent], bool]] = None,
+        entry_confirm: Optional[Callable[[TwinEvent], bool]] = None,
     ):
         self.policy = policy
         # Optional site hook: return False for ZONE_ENTERED events that are not real door entries
         # (e.g. a track that first appears in the middle of a room after an occlusion).
         self.entry_filter = entry_filter
+        # Optional site hook asked when an unmatched entry is finally decided (after the late-grant
+        # tolerance): return False to drop it as not a real entry (e.g. a track that vanished after a
+        # couple of sightings). Uses only what was observed up to the decision time, so it works live.
+        self.entry_confirm = entry_confirm
         # Entries waiting up to grant_after_entry_tolerance_seconds for a late badge grant.
         self.pending_entries: List[Dict[str, Any]] = []
         # Badge -> track matches made during the last evaluate() call: the rule engine attaches the
@@ -85,6 +90,9 @@ class CorrelationEngine:
         """
         expired_candidates: List[IncidentCandidate] = []
         window_sec = self.policy.correlation.badge_entry_window_seconds
+        # Entries can be decided up to `tol` seconds late (waiting for a late grant, or for the entry
+        # gate), so grants must live that much longer, or a tailgater decided late loses the evidence.
+        delay = self.policy.correlation.grant_after_entry_tolerance_seconds
 
         for door_id, grants in list(self.pending_grants.items()):
             remaining_grants: List[Dict[str, Any]] = []
@@ -94,7 +102,7 @@ class CorrelationEngine:
             for grant in grants:
                 if grant["used_by_track"] is None:
                     elapsed = (current_event_dt - grant["timestamp"]).total_seconds()
-                    if elapsed > window_sec:
+                    if elapsed > window_sec + delay:
                         badge_id = grant["badge_id"]
                         track_id = f"badge:{badge_id}"
                         summary = (
@@ -119,12 +127,28 @@ class CorrelationEngine:
                     # Keep used grants for potential tailgating evaluation
                     # Purge used grants older than tailgating window
                     used_elapsed = (current_event_dt - grant["used_at"]).total_seconds()
-                    if used_elapsed <= self.policy.correlation.tailgating_window_seconds:
+                    if used_elapsed <= self.policy.correlation.tailgating_window_seconds + delay:
                         remaining_grants.append(grant)
 
             self.pending_grants[door_id] = remaining_grants
 
         return expired_candidates
+
+    def _decide_deferred(self, pe: Dict[str, Any], now_dt: datetime) -> List[IncidentCandidate]:
+        """Decide a gated entry at its deadline: drop it (not a real entry), match a grant, or raise."""
+        event, entry_dt, badge_doors = pe["event"], pe["dt"], pe["badge_doors"]
+        if not self.entry_confirm(event):
+            return []
+        window = self.policy.correlation.badge_entry_window_seconds
+        tol = self.policy.correlation.grant_after_entry_tolerance_seconds
+        for _door, grant in sorted(((d, g) for d in badge_doors for g in self.pending_grants.get(d.door_id, [])),
+                                   key=lambda dg: dg[1]["timestamp"]):
+            if grant["used_by_track"] is None and -tol <= (entry_dt - grant["timestamp"]).total_seconds() <= window:
+                grant["used_by_track"] = event.track_id
+                grant["used_at"] = entry_dt
+                self.attributions.append({"entry": event, "grant": grant})
+                return []
+        return [self._unmatched_entry(event, entry_dt, badge_doors)]
 
     def _unmatched_entry(self, event: TwinEvent, current_event_dt: datetime, badge_doors) -> IncidentCandidate:
         """Decide an entry that no badge grant matched: TAILGATING if a recently used grant exists, else ACCESS_WITHOUT_BADGE."""
@@ -209,11 +233,13 @@ class CorrelationEngine:
             candidates.extend(sweep_candidates)
             tol = self.policy.correlation.grant_after_entry_tolerance_seconds
             still = []
-            for pe in self.pending_entries:
-                if (current_event_dt - pe["dt"]).total_seconds() > tol:
-                    candidates.append(self._unmatched_entry(pe["event"], pe["dt"], pe["badge_doors"]))
-                else:
+            for pe in sorted(self.pending_entries, key=lambda e: e["dt"]):
+                if (current_event_dt - pe["dt"]).total_seconds() <= tol:
                     still.append(pe)
+                elif pe.get("deferred"):
+                    candidates.extend(self._decide_deferred(pe, current_event_dt))
+                else:
+                    candidates.append(self._unmatched_entry(pe["event"], pe["dt"], pe["badge_doors"]))
             self.pending_entries = still
 
             # 2. Bookkeeping: ACCESS_GRANTED
@@ -253,7 +279,8 @@ class CorrelationEngine:
                         self.pending_grants.setdefault(door_id, []).append(grant_record)
                         tol = self.policy.correlation.grant_after_entry_tolerance_seconds
                         for pe in sorted(self.pending_entries, key=lambda e: e["dt"]):
-                            if pe["event"].zone_id == door.zone_id and 0.0 <= (current_event_dt - pe["dt"]).total_seconds() <= tol:
+                            if (not pe.get("deferred") and pe["event"].zone_id == door.zone_id
+                                    and 0.0 <= (current_event_dt - pe["dt"]).total_seconds() <= tol):
                                 grant_record["used_by_track"] = pe["event"].track_id
                                 self.attributions.append({"entry": pe["event"], "grant": grant_record})
                                 grant_record["used_at"] = pe["dt"]
@@ -270,7 +297,12 @@ class CorrelationEngine:
                     for d in self.access_config.doors.values()
                     if d.zone_id == event.zone_id and d.badge_required
                 ]
-                if badge_doors:
+                if badge_doors and self.entry_confirm is not None:
+                    # Gated site: decide only once the track has proven to be a real entry (at the
+                    # late-grant deadline), so a tracker blip at the door cannot use up the badge grant.
+                    self.pending_entries.append({"event": event, "dt": current_event_dt,
+                                                 "badge_doors": badge_doors, "deferred": True})
+                elif badge_doors:
                     window_sec = self.policy.correlation.badge_entry_window_seconds
                     tailgate_win_sec = self.policy.correlation.tailgating_window_seconds
                     door_grants = [
