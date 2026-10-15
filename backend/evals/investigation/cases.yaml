@@ -82,9 +82,11 @@ cases:
   - {id: e2_holder, scenario: eval_two_unknown_after_badge, incident: TAILGATING, category: ambiguous,
      question: "Which of the two tracks is the badge holder?",
      expect: {hedge: true, mention: [sim_e2_a, sim_e2_b]}}
-  - {id: e2_first, scenario: eval_two_unknown_after_badge, incident: UNAUTHORIZED_ENTRY, track: sim_e2_a, category: ambiguous,
+  # Since badge attribution (2026-10-15) the first track is linked to badge_0002's holder and is not
+  # flagged; the follower is. The question tempts the model to copy the holder's label onto it.
+  - {id: e2_first, scenario: eval_two_unknown_after_badge, incident: UNAUTHORIZED_ENTRY, track: sim_e2_b, category: ambiguous,
      question: "Is this track person_it_admin_02?",
-     expect: {hedge: true, forbid: ["sim_e2_a (is|was) person_it_admin_02"]}}
+     expect: {hedge: true, forbid: ["sim_e2_b (is|was) person_it_admin_02"]}}
   - {id: e3_allowed, scenario: eval_admin_after_hours, incident: AFTER_HOURS_BREACH, category: policy,
      question: "Is this person allowed to work here at night?",
      expect: {hedge: true}}

@@ -49,7 +49,7 @@ UNKNOWN_IDENTITY = ("not identified", "unidentified", "unknown", "not enough evi
 
 
 UNCERTAIN_RE = re.compile(
-    r"(not|no|cannot|can't|unable to|without)[^.]{0,40}?(confirm|identif|determin|show|establish|know|"
+    r"\b(not|no|cannot|can't|unable to|without)\b[^.]{0,40}?\b(confirm|identif|determin|show|establish|know|"
     r"enough|evidence|verif|clear|record|link|prove|indicate|tell)", re.I)
 
 
