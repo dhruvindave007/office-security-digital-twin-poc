@@ -1,3 +1,4 @@
+
 # Operator dashboard (M11)
 
 A single-screen operations view of the live site: camera wall, floor plan with room counts, the incident
