@@ -1,0 +1,7 @@
+name: eval_badge_denied_then_entry
+description: "Badge badge_0100 is DENIED at the server room door, then an unlabelled track appears inside 3 s later."
+base_time_utc: "2026-01-16T10:00:00Z"
+steps:
+  - {t: 0.0, kind: access, door_id: door_server_01, badge_id: badge_0100, result: DENIED}
+  - {t: 3.0, camera_id: cam_server_01, track_id: sim_e1, person_id: null, floor: [35.0, 5.0], confidence: 0.9}
+  - {t: 8.0, camera_id: cam_server_01, track_id: sim_e1, person_id: null, floor: [36.0, 6.0], confidence: 0.9}

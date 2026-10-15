@@ -1,4 +1,5 @@
 import logging
+import re
 from typing import Any, Dict, List
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -57,6 +58,10 @@ async def run_scenario(name: str, request: Request):
             detail="Scenario runner is not initialized.",
         )
 
+    # Names map to files on disk: allow only plain names so "..\x" cannot escape the folder.
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", name):
+        raise HTTPException(status_code=404, detail=f"Scenario '{name}' not found.")
+
     settings = get_settings()
     scenarios_dir = _resolve_data_path(settings.simulator_scenarios_dir, settings.simulator_scenarios_dir)
     scenario_path = scenarios_dir / f"{name}.yaml"
@@ -71,7 +76,7 @@ async def run_scenario(name: str, request: Request):
         scenario = load_scenario(scenario_path)
     except Exception as e:
         logger.error("Failed to load scenario '%s': %s", name, e)
-        raise HTTPException(status_code=500, detail=f"Failed to load scenario: {e}")
+        raise HTTPException(status_code=422, detail=f"Invalid scenario file '{name}': {e}")
 
     try:
         result = runner.run(scenario)

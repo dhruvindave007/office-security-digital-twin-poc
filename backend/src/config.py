@@ -31,7 +31,23 @@ class Settings(BaseSettings):
     aws_region: str = "us-east-1"
     bedrock_reasoning_model_id: str = "us.amazon.nova-lite-v1:0"
     bedrock_fast_model_id: str = "us.amazon.nova-micro-v1:0"
-    bedrock_multimodal_model_id: str = "us.amazon.nova-pro-v1:0"
+    bedrock_multimodal_model_id: str = "us.amazon.nova-lite-v1:0"  # cheapest video-capable model; Pro is ~13x the price
+    # Incident investigation (M5). Haiku 5.5 chosen by measured eval: same grounding/honesty
+    # scores as Sonnet 5.5 at ~1/14 of the cost. Budget cap guards spend on the POC account.
+    bedrock_investigation_model_id: str = "global.anthropic.claude-haiku-5-5"
+    # Claude Haiku 5.5 thinks by default (hidden tokens count as output). Measured 2026-10-13:
+    # effort "low" passed every grounding/honesty check at ~20% less cost and latency than the
+    # default "medium"; thinking disabled was cheapest but failed the identity-judgment check.
+    investigation_effort: str = "low"
+    investigation_max_output_tokens: int = 6000
+    # Second, cheap pass that checks every claim against the records it cites (see claim_check.py).
+    investigation_claim_judge: bool = True
+    investigation_daily_budget_usd: float = 1.0
+    # Automatic investigation of serious incidents (src/ai/investigation/auto.py). Off by default: it spends money.
+    auto_investigate_enabled: bool = False
+    auto_investigate_min_severity: str = "HIGH"
+    auto_investigate_cooldown_seconds: float = 600.0   # one per (incident type, room) per 10 min
+    auto_investigate_max_per_hour: int = 12
     bedrock_connect_timeout: float = 10.0
     bedrock_read_timeout: float = 60.0
     bedrock_max_retries: int = 3
@@ -41,14 +57,38 @@ class Settings(BaseSettings):
     twin_snapshot_interval_events: int = 100
     twin_floorplan_seed_path: str = "src/twin/floorplan_seed.yaml"
     twin_prune_interval_seconds: float = 5.0
+    twin_position_sample_seconds: float = 0.0   # live sites: 1.0 (store each person's position once a second)
 
     # Vision Geometry Configuration
     vision_calibration_dir: str = "data/calibration"
     vision_topology_dir: str = "data/topology"
 
+    # Vision Pipeline & Tracking Configuration
+    vision_model: str = "yolo11n.pt"
+    vision_models_dir: str = "data/models"
+    vision_device: str = "cpu"
+    vision_tracker: str = "bytetrack.yaml"
+    vision_clips_dir: str = "data/clips"
+    vision_min_confidence: float = 0.35
+    vision_process_fps: float = 5.0
+    vision_benchmarks_dir: str = "data/benchmarks"
+
     # Rules & Simulator Configuration
     rules_policy_path: str = "data/rules/access_policy.yaml"
+
+    # Live cameras (src/live). A site's camera list, e.g. ../data/sites/wisenet/live.yaml
+    live_config_path: str = ""
+    live_autostart: bool = False
+    frontend_dist_dir: str = "../frontend/dist"   # built dashboard served at /, relative to backend/
+    # Evidence clips recorded around serious live incidents (src/live/evidence.py)
+    evidence_enabled: bool = True
+    evidence_dir: str = "data/evidence"
+    evidence_pre_seconds: float = 12.0
+    evidence_post_seconds: float = 8.0
+    evidence_min_severity: str = "HIGH"
+    evidence_max_total_mb: float = 2000.0
     simulator_scenarios_dir: str = "data/scenarios"
+    access_config_path: str = "data/access/doors.yaml"
 
 
     @field_validator("cors_origins", mode="before")

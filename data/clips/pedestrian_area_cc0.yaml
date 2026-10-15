@@ -1,0 +1,9 @@
+name: pedestrian_area_cc0
+description: "Dense crowd test (15 s, CC0). Container reports a bogus 1000 fps; the true rate is 25 fps, so source_fps_override is required."
+video_file: pedestrian_area_cc0.webm
+camera_id: cam_reception_01
+base_time_utc: "2026-01-20T10:00:00Z"
+process_fps: 5.0
+max_frames: null
+source_fps_override: 25.0
+source_note: 'Wikimedia Commons "Video Codec Test pedestrian area 1080p25.y4m.webm" by Taurus Media Technik, CC0 1.0 (public domain). https://commons.wikimedia.org/wiki/File:Video_Codec_Test_pedestrian_area_1080p25.y4m.webm'

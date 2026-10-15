@@ -1,4 +1,5 @@
 import logging
+import re
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -107,3 +108,142 @@ async def ingest_observation(payload: ObservationIngestRequest, request: Request
         emitted_event_ids=[evt.event_id for evt in res.emitted_events],
         raised_incident_ids=[inc.incident_id for inc in res.raised_incidents],
     )
+
+
+# ---------------------------------------------------------------------------
+# Clip Evaluation Routes
+# ---------------------------------------------------------------------------
+
+try:
+    from src.config import get_settings
+    from src.core.paths import _resolve_data_path
+    from src.vision.clips import list_clip_configs, load_clip_config
+    from src.vision.clip_jobs import JobConflictError, JobNotFoundError
+except ImportError:
+    from config import get_settings
+    from core.paths import _resolve_data_path
+    from vision.clips import list_clip_configs, load_clip_config
+    from vision.clip_jobs import JobConflictError, JobNotFoundError
+
+
+@router.get("/clips")
+async def list_clips(request: Request):
+    """List all configured evaluation clips and whether their video files are present on disk."""
+    settings = getattr(request.app.state, "settings", None) or get_settings()
+    clips_dir = _resolve_data_path(settings.vision_clips_dir, "data/clips")
+    configs = list_clip_configs(clips_dir)
+
+    results = []
+    for cfg in configs:
+        video_path = clips_dir / cfg.video_file
+        results.append({
+            "name": cfg.name,
+            "description": cfg.description,
+            "camera_id": cfg.camera_id,
+            "video_file": cfg.video_file,
+            "video_present": video_path.exists(),
+            "source_note": cfg.source_note,
+        })
+    return results
+
+
+@router.post("/clips/{name}/run", status_code=202)
+async def run_clip(name: str, request: Request):
+    """Trigger background evaluation run for a configured clip."""
+    pipeline = getattr(request.app.state, "observation_pipeline", None)
+    if pipeline is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Observation pipeline is not initialized.",
+        )
+
+    job_manager = getattr(request.app.state, "clip_job_manager", None)
+    if job_manager is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Clip job manager is not initialized.",
+        )
+
+    tracker_factory = getattr(request.app.state, "tracker_factory", None)
+    if tracker_factory is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Tracker factory is not configured.",
+        )
+
+    # Names map to files on disk: allow only plain names so "..\x" cannot escape the folder.
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", name):
+        raise HTTPException(status_code=404, detail=f"Clip '{name}' not found.")
+
+    settings = getattr(request.app.state, "settings", None) or get_settings()
+    clips_dir = _resolve_data_path(settings.vision_clips_dir, "data/clips")
+
+    # Find clip manifest
+    cfg_path = clips_dir / f"{name}.yaml"
+    if not cfg_path.exists():
+        cfg_path = clips_dir / f"{name}.yml"
+    if not cfg_path.exists():
+        raise HTTPException(status_code=404, detail=f"Clip '{name}' not found.")
+
+    try:
+        config = load_clip_config(cfg_path)
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid clip config '{name}': {exc}")
+
+    # Validate video file presence
+    video_path = clips_dir / config.video_file
+    if not video_path.exists():
+        raise HTTPException(
+            status_code=422,
+            detail=f"Video file '{config.video_file}' for clip '{name}' is missing.",
+        )
+
+    clip_runner = getattr(request.app.state, "clip_runner", None)
+    known_cameras = getattr(clip_runner, "camera_nodes", None) or {}
+    if config.camera_id not in known_cameras:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Clip '{name}' references unknown camera_id '{config.camera_id}'.",
+        )
+
+    try:
+        run_id = job_manager.start(config=config, tracker_factory=tracker_factory)
+        return {"run_id": run_id}
+    except JobConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+
+
+@router.get("/clips/runs/{run_id}")
+async def get_clip_run(run_id: str, request: Request):
+    """Retrieve execution status and performance metrics for a clip run."""
+    job_manager = getattr(request.app.state, "clip_job_manager", None)
+    if job_manager is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Clip job manager is not initialized.",
+        )
+
+    record = job_manager.get(run_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found.")
+    return record
+
+
+@router.post("/clips/runs/{run_id}/cancel", status_code=202)
+async def cancel_clip_run(run_id: str, request: Request):
+    """Cancel an active clip run."""
+    job_manager = getattr(request.app.state, "clip_job_manager", None)
+    if job_manager is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Clip job manager is not initialized.",
+        )
+
+    try:
+        job_manager.cancel(run_id)
+        return {"run_id": run_id, "status": "cancelling"}
+    except JobNotFoundError:
+        raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found.")
+    except JobConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+

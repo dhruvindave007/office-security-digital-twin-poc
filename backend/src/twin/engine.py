@@ -13,6 +13,7 @@ from src.twin.state import TwinState
 from src.twin.store import TwinStore
 from src.twin.telemetry import TwinTelemetry
 from src.twin.validators import EventValidator
+from src.core.timeutil import canonical_utc, parse_utc, utc_now_canonical
 
 logger = logging.getLogger("office_vision.twin.engine")
 
@@ -48,13 +49,21 @@ class DigitalTwinEngine:
         telemetry: Optional[TwinTelemetry] = None,
         dwell_threshold_seconds: float = 300.0,
         track_ttl_seconds: float = 30.0,
+        position_sample_seconds: float = 0.0,
     ):
         self.store = store
+        # Store a PERSON_DETECTED position at most this often per track (0 = every detection). Zone
+        # changes are always stored; skipped samples stay in memory and are written if a rule cites one.
+        # Live 6 cameras x 5 fps wrote ~1.6 GB/day at every detection.
+        self.position_sample_seconds = position_sample_seconds
+        self._last_pos_stored: Dict[str, Any] = {}
         self.state = state or TwinState()
         self.snapshot_manager = snapshot_manager or SnapshotManager()
         self.telemetry = telemetry or TwinTelemetry()
         self.dwell_threshold_seconds = dwell_threshold_seconds
         self.track_ttl_seconds = track_ttl_seconds
+        # (track_id, zone_id, dwell_start) already alerted: DWELL_TIME_EXCEEDED fires once per dwell period.
+        self._dwell_alerted: set = set()
 
         if geometry:
             self.geometry = geometry
@@ -98,7 +107,7 @@ class DigitalTwinEngine:
         x, y = EventValidator.validate_coordinates((x, y))
         confidence = EventValidator.validate_confidence(confidence)
         if not timestamp:
-            timestamp = datetime.utcnow().isoformat()
+            timestamp = utc_now_canonical()
         else:
             timestamp = EventValidator.validate_timestamp(timestamp)
 
@@ -119,6 +128,12 @@ class DigitalTwinEngine:
             confidence=confidence,
             person_id=person_id,
         )
+
+        # The twin may already know who this track is (e.g. from an earlier observation);
+        # stamp events with that identity so rules never see a known person as "unknown".
+        tracked_now = self.state.get_track(track_id)
+        if person_id is None and tracked_now is not None:
+            person_id = tracked_now.person_id
 
         # 5. Generate discrete domain events
         emitted_events: List[TwinEvent] = []
@@ -228,10 +243,12 @@ class DigitalTwinEngine:
             and updated_entity.current_zone_id
             and updated_entity.dwell_start
         ):
-            dwell_start_dt = datetime.fromisoformat(updated_entity.dwell_start.replace("Z", "+00:00"))
-            current_dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+            dwell_start_dt = parse_utc(updated_entity.dwell_start)
+            current_dt = parse_utc(timestamp)
             dwell_duration = (current_dt - dwell_start_dt).total_seconds()
-            if dwell_duration > self.dwell_threshold_seconds:
+            dwell_key = (track_id, updated_entity.current_zone_id, updated_entity.dwell_start)
+            if dwell_duration > self.dwell_threshold_seconds and dwell_key not in self._dwell_alerted:
+                self._dwell_alerted.add(dwell_key)
                 emitted_events.append(
                     TwinEvent(
                         event_id=generate_uuid7(),
@@ -248,6 +265,14 @@ class DigitalTwinEngine:
                 )
 
         # 7. Persist to append-only SQLite ledger
+        if self.position_sample_seconds > 0:
+            now_dt = parse_utc(timestamp)
+            last = self._last_pos_stored.get(track_id)
+            if len(emitted_events) == 1 and last is not None and (now_dt - last).total_seconds() < self.position_sample_seconds:
+                self.store.defer_event(emitted_events[0])     # plain position sample, no transition
+                self.telemetry.record_ingest(1, (time.perf_counter() - start_time) * 1000.0)
+                return emitted_events
+            self._last_pos_stored[track_id] = now_dt
         for evt in emitted_events:
             seq_num = self.store.append_event(evt)
             evt.sequence_num = seq_num
@@ -263,15 +288,24 @@ class DigitalTwinEngine:
 
         return emitted_events
 
-    def prune_tracks(self, now_iso: Optional[str] = None) -> List[TwinEvent]:
-        """Prune inactive tracks exceeding TTL and emit TRACK_LOST events."""
-        if not now_iso:
-            now_iso = datetime.now(timezone.utc).isoformat()
+    def prune_tracks(
+        self,
+        now_iso: Optional[str] = None,
+        ttl_seconds: Optional[float] = None,
+        track_id_prefix: Optional[str] = None,
+    ) -> List[TwinEvent]:
+        """Prune inactive tracks exceeding TTL and emit TRACK_LOST events.
 
-        pruned_entities = self.state.prune_inactive_tracks(now_iso, self.track_ttl_seconds)
+        track_id_prefix limits pruning to tracks whose ID starts with it (None = all tracks).
+        """
+        now_iso = canonical_utc(now_iso) if now_iso else utc_now_canonical()
+
+        effective_ttl = self.track_ttl_seconds if ttl_seconds is None else ttl_seconds
+        pruned_entities = self.state.prune_inactive_tracks(now_iso, effective_ttl, track_id_prefix)
         lost_events: List[TwinEvent] = []
 
         for entity in pruned_entities:
+            self._last_pos_stored.pop(entity.track_id, None)
             evt = TwinEvent(
                 event_id=generate_uuid7(),
                 event_type="TRACK_LOST",
@@ -328,18 +362,10 @@ class DigitalTwinEngine:
                     person_id=evt.person_id,
                 )
             elif evt.event_type == "TRACK_LOST":
-                self.state.update_track(
-                    track_id=evt.track_id,
-                    camera_id=evt.camera_id,
-                    zone_id=None,
-                    position=pos,
-                    timestamp=evt.timestamp,
-                    confidence=evt.confidence or 1.0,
-                    person_id=evt.person_id,
-                )
-                entity = self.state.get_track(evt.track_id)
-                if entity:
-                    entity.status = "LOST"
+                # Mirror prune_tracks exactly: a lost track leaves the active set. (Previously replay
+                # re-created it as ACTIVE and only flagged a copy, so a restart resurrected lost
+                # tracks and the next prune emitted a duplicate TRACK_LOST.)
+                self.state.remove_track(evt.track_id)
             count += 1
 
         return count

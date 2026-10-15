@@ -1,0 +1,5 @@
+name: lab_badge_without_entry
+description: "SIMULATED: badge_1002 is granted at the vision-lab door (d4). If nobody enters within the badge window (+5 s late-entry tolerance), BADGE_WITHOUT_ENTRY is raised when later events arrive (live cameras provide them)."
+base_time_utc: now
+steps:
+  - {t: 0.0, kind: access, door_id: door_d4, badge_id: badge_1002, result: GRANTED}

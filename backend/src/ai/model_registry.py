@@ -57,6 +57,18 @@ class StaticModelCatalog:
             max_context_tokens=200_000,
             source="static_catalog",
         ),
+        # Chosen investigation model (2026-10-13 eval: best grounding/honesty per dollar).
+        # Images yes, video no (send key frames). Context size: conservative assumption.
+        "global.anthropic.claude-haiku-5-5": VerifiedModelCapabilities(
+            model_id="global.anthropic.claude-haiku-5-5",
+            supports_converse=True,
+            supports_streaming=True,
+            supports_tools=True,
+            supports_multimodal=True,
+            supports_video=False,
+            max_context_tokens=200_000,
+            source="static_catalog",
+        ),
         "amazon.titan-text-express-v1": VerifiedModelCapabilities(
             model_id="amazon.titan-text-express-v1",
             supports_converse=True,

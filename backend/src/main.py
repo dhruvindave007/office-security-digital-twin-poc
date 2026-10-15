@@ -2,6 +2,7 @@ import asyncio
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 import logging
+from typing import Any, Optional
 
 import boto3
 from fastapi import FastAPI
@@ -10,43 +11,55 @@ from fastapi.middleware.cors import CORSMiddleware
 try:
     from src.ai.bedrock_client import BedrockClient
     from src.ai.model_registry import DynamicValidator
+    from src.api.routes_access import router as access_router
+    from src.api.routes_investigation import router as investigation_router
+    from src.api.routes_live import evidence_router, router as live_router
     from src.api.routes_simulator import router as simulator_router
+    from src.api.routes_site import router as site_router
+    from src.api.routes_stream import Broadcaster, router as stream_router
+    from src.api.routes_twin import _row_to_incident_response
     from src.api.routes_system import router as system_router
     from src.api.routes_twin import router as twin_router
     from src.api.routes_vision import router as vision_router
     from src.config import get_settings
-    from src.rules.engine import IncidentRuleEngine
-    from src.rules.policy import load_access_policy
-    from src.simulator.runner import ScenarioRunner
-    from src.twin.bootstrap import TwinBootstrapService
-    from src.vision.pipeline import ObservationPipeline
-    from src.vision.seed import VisionSeedLoader
-    from src.vision.zones import VisionZoneResolver
+    from src.core.locks import TWIN_WRITE_LOCK
+    from src.live.manager import LiveManager
+    from src.runtime import build_runtime
 except ImportError:
     from ai.bedrock_client import BedrockClient
     from ai.model_registry import DynamicValidator
+    from api.routes_access import router as access_router
+    from api.routes_investigation import router as investigation_router
+    from api.routes_live import evidence_router, router as live_router
     from api.routes_simulator import router as simulator_router
+    from api.routes_site import router as site_router
+    from api.routes_stream import Broadcaster, router as stream_router
+    from api.routes_twin import _row_to_incident_response
     from api.routes_system import router as system_router
     from api.routes_twin import router as twin_router
     from api.routes_vision import router as vision_router
     from config import get_settings
-    from rules.engine import IncidentRuleEngine
-    from rules.policy import load_access_policy
-    from simulator.runner import ScenarioRunner
-    from twin.bootstrap import TwinBootstrapService
-    from vision.pipeline import ObservationPipeline
-    from vision.seed import VisionSeedLoader
-    from vision.zones import VisionZoneResolver
+    from core.locks import TWIN_WRITE_LOCK
+    from live.manager import LiveManager
+    from runtime import build_runtime
 
 logger = logging.getLogger("office_vision.main")
 
 
+def should_prune(clip_job_manager: Any) -> bool:
+    """Return True if prune loop should proceed, False if a clip run is active."""
+    if clip_job_manager is not None and getattr(clip_job_manager, "active_run_id", None) is not None:
+        return False
+    return True
+
+
 def _prune_once(twin_engine, rule_engine, now_iso: str):
     """Execute a single prune cycle and evaluate lost track events against rules."""
-    lost_events = twin_engine.prune_tracks(now_iso)
-    if lost_events and rule_engine:
-        return rule_engine.evaluate(lost_events)
-    return []
+    with TWIN_WRITE_LOCK:
+        lost_events = twin_engine.prune_tracks(now_iso)
+        if lost_events and rule_engine:
+            return rule_engine.evaluate(lost_events)
+        return []
 
 
 @asynccontextmanager
@@ -76,50 +89,56 @@ async def lifespan(app: FastAPI):
         "boto3_version": boto3.__version__,
     }
 
-    # 2. Digital Twin Core bootstrap (migrations, floorplan seed, snapshot restore, replay)
-    twin_engine = TwinBootstrapService.bootstrap(
-        db_path=settings.database_url,
-        seed_path=settings.twin_floorplan_seed_path,
-        track_ttl_seconds=settings.twin_track_ttl_seconds,
-        snapshot_interval=settings.twin_snapshot_interval_events,
-    )
+    # 2-3. Digital Twin, rules, correlation, access control, vision pipeline and clip jobs
+    runtime = build_runtime(settings)
+    twin_engine = runtime.twin_engine
     app.state.twin_engine = twin_engine
+    app.state.rule_engine = runtime.rule_engine
+    app.state.access_service = runtime.access_service
+    app.state.homography_manager = runtime.homography_manager
+    app.state.observation_pipeline = runtime.observation_pipeline
+    app.state.scenario_runner = runtime.scenario_runner
+    app.state.clip_runner = runtime.clip_runner
+    app.state.clip_job_manager = runtime.clip_job_manager
+    app.state.tracker_factory = runtime.tracker_factory
+    app.state.investigation_service = runtime.investigation_service
+    broadcaster = Broadcaster(asyncio.get_running_loop())
+    app.state.broadcaster = broadcaster
+    if runtime.rule_engine is not None:
+        runtime.rule_engine.listeners.append(
+            broadcaster.incident_listener(lambda inc: _row_to_incident_response(inc).model_dump()))
+    auto_investigator = None
+    if settings.auto_investigate_enabled and runtime.investigation_service is not None and runtime.rule_engine is not None:
+        try:
+            from src.ai.investigation.auto import AutoInvestigator
+        except ImportError:
+            from ai.investigation.auto import AutoInvestigator
 
-    # 3. Vision Geometry, Deterministic Rules, and Simulator bootstrap
-    app.state.homography_manager = None
-    app.state.rule_engine = None
-    app.state.observation_pipeline = None
-    app.state.scenario_runner = None
-
-    try:
-        homography_mgr, camera_graph, topology = VisionSeedLoader.load_all(
-            settings.vision_calibration_dir,
-            settings.vision_topology_dir,
-        )
-        zone_resolver = VisionZoneResolver.from_twin_store(twin_engine.store)
-        policy = load_access_policy(settings.rules_policy_path)
-        rule_engine = IncidentRuleEngine(twin_engine.store, twin_engine.state, policy)
-        obs_pipeline = ObservationPipeline(
-            homography_manager=homography_mgr,
-            zone_resolver=zone_resolver,
-            twin_engine=twin_engine,
-            topology_service=topology,
-            rule_engine=rule_engine,
-        )
-        scenario_runner = ScenarioRunner(obs_pipeline, homography_mgr)
-
-        app.state.homography_manager = homography_mgr
-        app.state.rule_engine = rule_engine
-        app.state.observation_pipeline = obs_pipeline
-        app.state.scenario_runner = scenario_runner
-    except Exception as e:
-        logger.error(f"Failed to initialize vision/rules pipeline: {e}", exc_info=True)
+        def _wait_evidence(incident_id, timeout):
+            ev = getattr(getattr(app.state, "live_manager", None), "evidence", None)
+            return ev.wait_ready(incident_id, timeout) if ev is not None else False
+        auto_investigator = AutoInvestigator(
+            runtime.investigation_service, min_severity=settings.auto_investigate_min_severity,
+            cooldown_seconds=settings.auto_investigate_cooldown_seconds,
+            max_per_hour=settings.auto_investigate_max_per_hour, wait_for_evidence=_wait_evidence)
+        runtime.rule_engine.listeners.append(auto_investigator.on_incidents)
+    app.state.auto_investigator = auto_investigator
+    live_manager = LiveManager(settings, twin_engine, runtime.rule_engine, access_service=runtime.access_service)
+    app.state.live_manager = live_manager
+    if settings.live_autostart and settings.live_config_path:
+        try:
+            await asyncio.to_thread(live_manager.start)
+        except Exception as e:  # the API must still come up; /api/live/status shows nothing running
+            logger.error(f"Live cameras failed to start from {settings.live_config_path}: {e}")
 
     # 4. Background prune loop
     async def prune_loop():
         while True:
             try:
                 await asyncio.sleep(settings.twin_prune_interval_seconds)
+                clip_manager = getattr(app.state, "clip_job_manager", None)
+                if not should_prune(clip_manager):
+                    continue
                 now_iso = datetime.now(timezone.utc).isoformat()
                 _prune_once(twin_engine, getattr(app.state, "rule_engine", None), now_iso)
             except asyncio.CancelledError:
@@ -137,6 +156,10 @@ async def lifespan(app: FastAPI):
             await prune_task
         except asyncio.CancelledError:
             pass
+        await asyncio.to_thread(live_manager.stop)
+        if auto_investigator is not None:
+            await asyncio.to_thread(auto_investigator.close)
+        twin_engine.store.close()  # release the per-thread SQLite connections
 
 
 settings = get_settings()
@@ -157,8 +180,14 @@ app.add_middleware(
 
 app.include_router(system_router)
 app.include_router(twin_router)
+app.include_router(investigation_router)
+app.include_router(access_router)
 app.include_router(vision_router)
 app.include_router(simulator_router)
+app.include_router(live_router)
+app.include_router(evidence_router)
+app.include_router(stream_router)
+app.include_router(site_router)
 
 
 @app.get("/health", tags=["System"])
@@ -174,3 +203,22 @@ async def health_check():
 @app.get("/api/health", tags=["System"])
 async def api_health_check():
     return await health_check()
+
+
+# Operator dashboard (frontend/dist, built with `npm run build`): served from the same origin as the
+# API, so the browser needs no CORS and the push channel and API share one host. Mounted last: every
+# API route above takes precedence. Absent build -> API only.
+def _mount_dashboard() -> None:
+    from pathlib import Path
+    from fastapi.staticfiles import StaticFiles
+    dist = Path(settings.frontend_dist_dir)
+    if not dist.is_absolute():
+        dist = (Path(__file__).resolve().parents[1] / dist).resolve()
+    if (dist / "index.html").is_file():
+        app.mount("/", StaticFiles(directory=str(dist), html=True), name="dashboard")
+        logger.info(f"Dashboard served from {dist}")
+    else:
+        logger.info(f"No dashboard build at {dist} (run: cd frontend && npm run build); serving the API only")
+
+
+_mount_dashboard()

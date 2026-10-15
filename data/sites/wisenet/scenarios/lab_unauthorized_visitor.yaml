@@ -1,0 +1,7 @@
+name: lab_unauthorized_visitor
+description: "SIMULATED: a person labelled person_visitor_01 is seen in the vision lab (restricted; only person_lab_lead is authorized)."
+base_time_utc: now
+steps:
+  - {t: 0.0, camera_id: cam_3, track_id: "sim:lab_visitor", person_id: person_visitor_01, floor: [28.71, 9.48], confidence: 0.9}
+  - {t: 0.4, camera_id: cam_3, track_id: "sim:lab_visitor", person_id: person_visitor_01, floor: [28.71, 9.48], confidence: 0.9}
+  - {t: 0.8, camera_id: cam_3, track_id: "sim:lab_visitor", person_id: person_visitor_01, floor: [28.71, 9.48], confidence: 0.9}

@@ -108,7 +108,7 @@ def test_over_capacity_resolves_on_cross_zone_transition(store, policy):
     res_inc = resolved_incidents[0]
     assert res_inc.incident_id == inc.incident_id
     assert res_inc.status == "RESOLVED"
-    assert res_inc.end_time == "2026-01-15T10:05:00Z"
+    assert res_inc.end_time == "2026-01-15T10:05:00.000000Z"
     assert "evt_cross_01" in json.loads(res_inc.supporting_event_ids_json)
 
 
@@ -287,8 +287,8 @@ def test_unauthorized_entry_rule_positive_and_negative(store, policy):
     assert inc.incident_type == "UNAUTHORIZED_ENTRY"
     assert inc.status == "OPEN"
     assert inc.severity == "HIGH"
-    assert inc.start_time == "2026-01-15T10:05:00Z"
-    assert inc.created_at == "2026-01-15T10:05:00Z"
+    assert inc.start_time == "2026-01-15T10:05:00.000000Z"
+    assert inc.created_at == "2026-01-15T10:05:00.000000Z"
 
 
 def test_zone_over_capacity_negative_when_occupancy_equals_max(store, policy):
@@ -343,8 +343,8 @@ def test_dwell_anomaly_positive_and_negative(store, policy):
     assert inc.incident_type == "DWELL_ANOMALY"
     assert inc.status == "OPEN"
     assert inc.severity == "MEDIUM"
-    assert inc.start_time == "2026-01-15T10:15:00Z"
-    assert inc.created_at == "2026-01-15T10:15:00Z"
+    assert inc.start_time == "2026-01-15T10:15:00.000000Z"
+    assert inc.created_at == "2026-01-15T10:15:00.000000Z"
 
 
 def test_after_hours_breach_positive_and_boundary_negatives(store, policy):
@@ -386,8 +386,8 @@ def test_after_hours_breach_positive_and_boundary_negatives(store, policy):
     assert inc.incident_type == "AFTER_HOURS_BREACH"
     assert inc.status == "OPEN"
     assert inc.severity == "LOW"
-    assert inc.start_time == "2026-01-15T20:30:00Z"
-    assert inc.created_at == "2026-01-15T20:30:00Z"
+    assert inc.start_time == "2026-01-15T20:30:00.000000Z"
+    assert inc.created_at == "2026-01-15T20:30:00.000000Z"
 
 
 def test_second_matching_event_appends_to_supporting_events(store, policy):

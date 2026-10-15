@@ -9,7 +9,17 @@ from botocore.exceptions import (
     NoCredentialsError,
     PartialCredentialsError,
     ReadTimeoutError,
+    SSOError,
+    SSOTokenLoadError,
+    TokenRetrievalError,
+    UnauthorizedSSOTokenError,
 )
+
+# Expired/missing AWS SSO sign-in surfaces as these (not NoCredentialsError); treat them as a
+# credentials problem so callers can tell the user to sign in again instead of "unexpected error".
+_CREDENTIAL_ERRORS = (NoCredentialsError, PartialCredentialsError, SSOError, SSOTokenLoadError,
+                      TokenRetrievalError, UnauthorizedSSOTokenError)
+SIGN_IN_HINT = "AWS sign-in missing or expired. Run scripts/aws_sso_login.py and approve in the browser."
 from src.ai.errors import (
     BedrockAccessDeniedError,
     BedrockCredentialsError,
@@ -23,6 +33,14 @@ from src.ai.model_registry import DynamicValidator
 from src.ai.response_parser import parse_converse_response, parse_converse_stream_events
 from src.ai.types import BedrockConverseResponse, BedrockStreamChunk
 from src.core.logging import log_bedrock_request
+
+
+def _inference_config(max_tokens: int, temperature: Optional[float]) -> Dict[str, Any]:
+    """Converse inferenceConfig. temperature=None omits it (Claude 5.x models reject the parameter)."""
+    config: Dict[str, Any] = {"maxTokens": max_tokens}
+    if temperature is not None:
+        config["temperature"] = temperature
+    return config
 
 
 class BedrockClient:
@@ -83,17 +101,20 @@ class BedrockClient:
         system_prompt: Optional[str] = None,
         model_id: Optional[str] = None,
         max_tokens: int = 512,
-        temperature: float = 0.7,
+        temperature: Optional[float] = 0.7,
+        additional_fields: Optional[Dict[str, Any]] = None,
     ) -> BedrockConverseResponse:
         """Execute a synchronous Converse call with telemetry logging and error mapping."""
         active_model = self.validator.validate_id_format(model_id or self.default_model_id)
         kwargs: Dict[str, Any] = {
             "modelId": active_model,
             "messages": messages,
-            "inferenceConfig": {"maxTokens": max_tokens, "temperature": temperature},
+            "inferenceConfig": _inference_config(max_tokens, temperature),
         }
         if system_prompt and system_prompt.strip():
             kwargs["system"] = [{"text": system_prompt.strip()}]
+        if additional_fields:
+            kwargs["additionalModelRequestFields"] = additional_fields
 
         start_time = time.perf_counter()
         try:
@@ -109,9 +130,9 @@ class BedrockClient:
                 status="success",
             )
             return parsed
-        except (NoCredentialsError, PartialCredentialsError) as e:
+        except _CREDENTIAL_ERRORS as e:
             self._log_error(active_model, start_time, "credentials_error")
-            raise BedrockCredentialsError("AWS credentials missing or incomplete.") from e
+            raise BedrockCredentialsError(SIGN_IN_HINT) from e
         except (ConnectTimeoutError, ReadTimeoutError) as e:
             self._log_error(active_model, start_time, "timeout_error")
             raise BedrockTimeoutError(f"Bedrock request timed out: {e}") from e
@@ -129,17 +150,20 @@ class BedrockClient:
         system_prompt: Optional[str] = None,
         model_id: Optional[str] = None,
         max_tokens: int = 512,
-        temperature: float = 0.7,
+        temperature: Optional[float] = 0.7,
+        additional_fields: Optional[Dict[str, Any]] = None,
     ) -> Generator[BedrockStreamChunk, None, BedrockConverseResponse]:
         """Execute a streaming ConverseStream call, yielding BedrockStreamChunk instances."""
         active_model = self.validator.validate_id_format(model_id or self.default_model_id)
         kwargs: Dict[str, Any] = {
             "modelId": active_model,
             "messages": messages,
-            "inferenceConfig": {"maxTokens": max_tokens, "temperature": temperature},
+            "inferenceConfig": _inference_config(max_tokens, temperature),
         }
         if system_prompt and system_prompt.strip():
             kwargs["system"] = [{"text": system_prompt.strip()}]
+        if additional_fields:
+            kwargs["additionalModelRequestFields"] = additional_fields
 
         start_time = time.perf_counter()
         try:
@@ -154,9 +178,9 @@ class BedrockClient:
                 status="stream_opened",
             )
             return parse_converse_stream_events(stream, active_model, self.region_name, start_time)
-        except (NoCredentialsError, PartialCredentialsError) as e:
+        except _CREDENTIAL_ERRORS as e:
             self._log_error(active_model, start_time, "credentials_error")
-            raise BedrockCredentialsError("AWS credentials missing or incomplete.") from e
+            raise BedrockCredentialsError(SIGN_IN_HINT) from e
         except (ConnectTimeoutError, ReadTimeoutError) as e:
             self._log_error(active_model, start_time, "timeout_error")
             raise BedrockTimeoutError(f"Bedrock stream connection timed out: {e}") from e

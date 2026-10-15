@@ -27,6 +27,10 @@ dev = [
     "httpx>=0.28.0",
     "pytest-mock>=3.14.0",
 ]
+vision = [
+    "ultralytics==8.4.176",
+    "openvino==2026.4.1",
+]
 
 [tool.setuptools.packages.find]
 where = ["."]
@@ -36,3 +40,8 @@ include = ["src*"]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = ["src", "backend/src"]
+markers = [
+    "vision_model: needs real YOLO weights and a real clip",
+]
+addopts = "-m 'not vision_model'"
+
