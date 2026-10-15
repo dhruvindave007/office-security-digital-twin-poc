@@ -35,8 +35,8 @@ answered 19 of 27 (70%) with every check passing, and 6 of its 27 answers contai
 unsupported claim (all of these were caught and flagged by the verifier, which is how the system
 behaves live: an answer with unsupported claims is marked as failing verification).
 
-**Known weaknesses.** Haiku judges Haiku's claims (self-judging bias possible; spot checks with the
-Sonnet results showed the same failure pattern). The checks are keyword/regex based apart from the judge.
+**Known weaknesses.** Haiku judges Haiku's claims (self-judging bias possible; not yet
+cross-checked with a different judge model). The checks are keyword/regex based apart from the judge.
 Human review of `investigation_eval_2026-10-14.csv` has not been done yet. Treat the result as a
 regression baseline for comparing models and prompts, not as a measured accuracy on real incidents.
 
