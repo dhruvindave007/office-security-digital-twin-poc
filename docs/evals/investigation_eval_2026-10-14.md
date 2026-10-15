@@ -31,7 +31,7 @@ a random sample of real incidents, and no case uses real footage.
 
 **What the score means.** "Mean score" is partial credit: the fraction of applicable checks passed,
 averaged over cases. It flatters the model. The stricter figure is **"All checks passed"**: Haiku
-answered 19 of 27 (70%) with every check passing, and 6 of its 27 answers contained at least one
+answered 19 of 27 (70%) with every check passing (20 of 27 after the 2026-10-15 scorer correction below), and 6 of its 27 answers contained at least one
 unsupported claim (all of these were caught and flagged by the verifier, which is how the system
 behaves live: an answer with unsupported claims is marked as failing verification).
 
@@ -40,7 +40,28 @@ cross-checked with a different judge model). The checks are keyword/regex based 
 Human review of `investigation_eval_2026-10-14.csv` has not been done yet. Treat the result as a
 regression baseline for comparing models and prompts, not as a measured accuracy on real incidents.
 
-## Failed checks by case
+## Update 2026-10-15: scorer correction and prompt v2
+
+**Correction.** The scorer's uncertainty pattern (`UNCERTAIN_RE` in `run_eval.py`) contained literal
+backspace characters instead of `` from the day it was written, so it never matched; only the phrase
+list detected hedges. Fixed (with tests) and the saved answers above re-scored without new model calls:
+Haiku 0.936 -> **0.942, 20/27 all checks passed**; Nova Lite 0.905 -> **0.911, 16/27**; Sonnet unchanged
+(0.964, 22/27). One verdict changed per affected model (`it_label`). The table above is kept as published.
+
+**Prompt investigation-v2** (every timeline item and finding must carry an ID; related incidents are
+cited by their incident_id). Reason: on live WiseNET incidents, answers failed verification on claims
+that were true but uncited. Case `e2_first` was updated: since badge attribution the first track is
+linked to the badge holder and is no longer flagged, so the case now targets the follower.
+
+| Model | Prompt | Mean score | All checks passed | Unsupported claims | Mean cost |
+|---|---|---|---|---|---|
+| haiku | v1 (2026-10-14, corrected) | 0.942 | 20/27 | 6 | $0.0026 |
+| haiku | v2 (2026-10-15, `results/20261015T144446Z`) | 0.993 | 26/27 | 0 | $0.0027 |
+
+Single run each; model answers vary between runs, so treat small differences with care. The remaining
+failure (`e6_escalate`, missing a required mention) failed for all three models under v1 as well.
+
+## Failed checks by case (2026-10-14 run, prompt v1)
 
 - tg_real / nova-lite: mentions
 - tg_who / nova-lite: claims_supported
