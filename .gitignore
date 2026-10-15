@@ -46,14 +46,45 @@ dist/
 data/*.db
 data/*.sqlite
 data/*.sqlite3
+**/data/models/
+data/clips/out/
 data/clips/*.mp4
 data/clips/*.mkv
 data/clips/*.avi
+data/clips/*.mov
+data/clips/*.webm
 !data/clips/.gitkeep
 !data/assets/.gitkeep
+
 
 # OS & IDE
 .DS_Store
 Thumbs.db
 .vscode/
 .idea/
+
+**/data/*.db
+**/data/*.db-wal
+**/data/*.db-shm
+
+# Evaluation datasets (MOT16/17 are CC BY-NC-SA, never commit)
+data/datasets/
+**/data/benchmarks/*.tmp
+**/data/clips/out/
+
+# Eval runs (local; curated summaries are committed under docs/evals/)
+backend/evals/investigation/results/
+
+# Site run artefacts (large; regenerate with evals/site/run_wisenet.py)
+data/sites/*/runs/*.json
+data/sites/*/runs/*.mp4
+!data/sites/*/runs/validation.json
+tools/
+
+# Runtime output (live mode)
+backend/data/evidence/
+backend/data/*.log
+backend/data/*.db*
+
+# frontend source folder named lib/ (the Python rule above would hide it)
+!frontend/src/lib/

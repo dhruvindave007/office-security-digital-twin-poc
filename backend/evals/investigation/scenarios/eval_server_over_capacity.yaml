@@ -1,0 +1,8 @@
+name: eval_server_over_capacity
+description: "Four unlabelled tracks enter the server room (capacity 3) within 3 seconds, no badge events."
+base_time_utc: "2026-01-16T14:00:00Z"
+steps:
+  - {t: 0.0, camera_id: cam_server_01, track_id: sim_e4_1, person_id: null, floor: [33.0, 3.0], confidence: 0.9}
+  - {t: 1.0, camera_id: cam_server_01, track_id: sim_e4_2, person_id: null, floor: [35.0, 4.0], confidence: 0.9}
+  - {t: 2.0, camera_id: cam_server_01, track_id: sim_e4_3, person_id: null, floor: [37.0, 5.0], confidence: 0.9}
+  - {t: 3.0, camera_id: cam_server_01, track_id: sim_e4_4, person_id: null, floor: [38.0, 7.0], confidence: 0.9}

@@ -124,3 +124,38 @@ def test_twin_state_timezone_mixed_pruning():
     assert len(pruned_2) == 1
     assert pruned_2[0].track_id == "trk_naive"
     assert state.get_track("trk_naive") is None
+
+
+def test_twin_engine_prune_tracks_default_and_custom_ttl(tmp_path):
+    """Verify TwinEngine.prune_tracks uses engine.track_ttl_seconds when ttl_seconds=None, and overrides when set."""
+    from src.twin.bootstrap import TwinBootstrapService
+
+    db_path = str(tmp_path / "test_prune_engine.db")
+    engine = TwinBootstrapService.bootstrap(
+        db_path=db_path,
+        seed_path="src/twin/floorplan_seed.yaml",
+        track_ttl_seconds=10.0,
+    )
+    t0 = "2026-09-19T12:00:00Z"
+    engine.state.update_track("trk_1", "cam_reception_01", "zone_reception", (1.0, 1.0), t0)
+
+    # 5 seconds later with default TTL (10.0) -> not pruned
+    lost = engine.prune_tracks(now_iso="2026-09-19T12:00:05Z", ttl_seconds=None)
+    assert len(lost) == 0
+    assert engine.state.get_track("trk_1") is not None
+
+    # 15 seconds later with default TTL (10.0) -> pruned
+    lost2 = engine.prune_tracks(now_iso="2026-09-19T12:00:15Z", ttl_seconds=None)
+    assert len(lost2) == 1
+    assert lost2[0].track_id == "trk_1"
+    assert lost2[0].event_type == "TRACK_LOST"
+    assert engine.state.get_track("trk_1") is None
+
+    # Verify custom TTL parameter
+    engine.state.update_track("trk_2", "cam_reception_01", "zone_reception", (1.0, 1.0), "2026-09-19T12:00:20Z")
+    # 2 seconds later with custom ttl_seconds=1.0 -> pruned early
+    lost3 = engine.prune_tracks(now_iso="2026-09-19T12:00:22Z", ttl_seconds=1.0)
+    assert len(lost3) == 1
+    assert lost3[0].track_id == "trk_2"
+    assert engine.state.get_track("trk_2") is None
+

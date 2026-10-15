@@ -8,3 +8,7 @@ business_hours_utc:
   start: "08:00"
   end: "19:00"
 dwell_alert_min_security_level: 3
+correlation:
+  badge_entry_window_seconds: 15.0   # a GRANTED swipe admits one entry within this many seconds after the swipe
+  tailgating_window_seconds: 10.0    # a second entry within this window of an already-used swipe = tailgating
+  transit_slack_seconds: 2.0

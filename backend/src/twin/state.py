@@ -75,6 +75,23 @@ class TwinState:
 
             return old_zone, zone_id
 
+    def assign_person(self, track_id: str, person_id: str) -> bool:
+        """Attach an identity learned from another source (e.g. the badge that admitted this track)."""
+        with self._lock:
+            entity = self._active_tracks.get(track_id)
+            if entity is None or entity.person_id:
+                return False
+            entity.person_id = person_id
+            return True
+
+    def remove_track(self, track_id: str) -> Optional[TrackedEntity]:
+        """Remove a track (e.g. replaying TRACK_LOST) and release its zone occupancy."""
+        with self._lock:
+            entity = self._active_tracks.pop(track_id, None)
+            if entity and entity.current_zone_id and entity.current_zone_id in self._zone_occupancy:
+                self._zone_occupancy[entity.current_zone_id].discard(track_id)
+            return entity
+
     def get_track(self, track_id: str) -> Optional[TrackedEntity]:
         """Fetch a copy of a tracked entity by ID."""
         with self._lock:
@@ -123,8 +140,14 @@ class TwinState:
         with self._lock:
             return {zone_id: len(tracks) for zone_id, tracks in self._zone_occupancy.items()}
 
-    def prune_inactive_tracks(self, now_iso: str, ttl_seconds: float) -> List[TrackedEntity]:
-        """Evict entities not seen within ttl_seconds and return pruned records."""
+    def prune_inactive_tracks(
+        self, now_iso: str, ttl_seconds: float, track_id_prefix: Optional[str] = None
+    ) -> List[TrackedEntity]:
+        """Evict entities not seen within ttl_seconds and return pruned records.
+
+        If track_id_prefix is given, only tracks whose ID starts with it are considered
+        (used by clip runs, which must never evict tracks they do not own).
+        """
         now_dt = datetime.fromisoformat(now_iso.replace("Z", "+00:00"))
         if now_dt.tzinfo is None:
             now_dt = now_dt.replace(tzinfo=timezone.utc)
@@ -133,6 +156,8 @@ class TwinState:
         with self._lock:
             inactive_ids = []
             for track_id, entity in self._active_tracks.items():
+                if track_id_prefix is not None and not track_id.startswith(track_id_prefix):
+                    continue
                 last_seen_dt = datetime.fromisoformat(entity.last_seen.replace("Z", "+00:00"))
                 if last_seen_dt.tzinfo is None:
                     last_seen_dt = last_seen_dt.replace(tzinfo=timezone.utc)

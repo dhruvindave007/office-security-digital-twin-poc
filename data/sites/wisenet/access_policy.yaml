@@ -1,0 +1,15 @@
+version: 1
+restricted_zones:
+  zone_vision_lab:
+    min_security_level: 4
+    authorized_person_ids:
+    - person_lab_lead
+business_hours_utc:
+  start: 07:00
+  end: '19:00'
+dwell_alert_min_security_level: 3
+correlation:
+  badge_entry_window_seconds: 15.0
+  tailgating_window_seconds: 10.0
+  transit_slack_seconds: 2.0
+  grant_after_entry_tolerance_seconds: 5.0

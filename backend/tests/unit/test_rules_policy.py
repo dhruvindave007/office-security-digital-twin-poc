@@ -65,3 +65,21 @@ def test_unknown_top_level_keys_are_ignored(tmp_path):
     assert policy.business_hours_utc.start == "08:00"
     assert policy.business_hours_utc.end == "18:00"
     assert policy.dwell_alert_min_security_level == 2
+    assert policy.correlation.badge_entry_window_seconds == 15.0
+    assert policy.correlation.tailgating_window_seconds == 10.0
+    assert policy.correlation.transit_slack_seconds == 2.0
+
+
+def test_correlation_policy_defaults_when_missing(tmp_path):
+    """Verify that omitting correlation section uses default parameters."""
+    policy_data = {
+        "version": 1,
+        "restricted_zones": {},
+    }
+    p = tmp_path / "policy_no_corr.yaml"
+    p.write_text(yaml.safe_dump(policy_data), encoding="utf-8")
+
+    policy = load_access_policy(p)
+    assert policy.correlation.badge_entry_window_seconds == 15.0
+    assert policy.correlation.tailgating_window_seconds == 10.0
+    assert policy.correlation.transit_slack_seconds == 2.0

@@ -1,0 +1,1180 @@
+{
+ "1": {
+  "twin_primary_camera": {
+   "zone_corridor": {
+    "seconds": 57,
+    "exact_pct": 82.5,
+    "within1_pct": 100.0,
+    "mae": 0.18,
+    "bias": 0.04,
+    "gt_peak": 2,
+    "sys_peak": 2
+   },
+   "zone_workroom": {
+    "seconds": 57,
+    "exact_pct": 15.8,
+    "within1_pct": 80.7,
+    "mae": 1.07,
+    "bias": 0.02,
+    "gt_peak": 5,
+    "sys_peak": 6
+   },
+   "zone_vision_lab": {
+    "seconds": 57,
+    "exact_pct": 86.0,
+    "within1_pct": 100.0,
+    "mae": 0.14,
+    "bias": 0.14,
+    "gt_peak": 1,
+    "sys_peak": 1
+   }
+  },
+  "fused_max_over_cameras": {
+   "zone_corridor": {
+    "seconds": 56,
+    "exact_pct": 96.4,
+    "within1_pct": 100.0,
+    "bias": 0.04
+   },
+   "zone_workroom": {
+    "seconds": 56,
+    "exact_pct": 12.5,
+    "within1_pct": 80.4,
+    "bias": -0.04
+   },
+   "zone_vision_lab": {
+    "seconds": 56,
+    "exact_pct": 91.1,
+    "within1_pct": 100.0,
+    "bias": 0.09
+   }
+  },
+  "detection": {
+   "cam_1": {
+    "frames": 23,
+    "gt_boxes": 23,
+    "pred_boxes": 18,
+    "true_positives": 10,
+    "precision": 0.5556,
+    "recall": 0.4348,
+    "id_switches": 0
+   },
+   "cam_2": {
+    "frames": 149,
+    "gt_boxes": 179,
+    "pred_boxes": 159,
+    "true_positives": 159,
+    "precision": 1.0,
+    "recall": 0.8883,
+    "id_switches": 1
+   },
+   "cam_3": {
+    "frames": 75,
+    "gt_boxes": 75,
+    "pred_boxes": 72,
+    "true_positives": 63,
+    "precision": 0.875,
+    "recall": 0.84,
+    "id_switches": 0
+   },
+   "cam_4": {
+    "frames": 291,
+    "gt_boxes": 1129,
+    "pred_boxes": 995,
+    "true_positives": 798,
+    "precision": 0.802,
+    "recall": 0.7068,
+    "id_switches": 61
+   },
+   "cam_5": {
+    "frames": 292,
+    "gt_boxes": 893,
+    "pred_boxes": 572,
+    "true_positives": 389,
+    "precision": 0.6801,
+    "recall": 0.4356,
+    "id_switches": 4
+   }
+  },
+  "observations": 1226,
+  "metric": 156,
+  "room": 1070,
+  "seconds": 127
+ },
+ "2": {
+  "twin_primary_camera": {
+   "zone_corridor": {
+    "seconds": 119,
+    "exact_pct": 89.9,
+    "within1_pct": 100.0,
+    "mae": 0.1,
+    "bias": 0.05,
+    "gt_peak": 1,
+    "sys_peak": 1
+   },
+   "zone_workroom": {
+    "seconds": 119,
+    "exact_pct": 42.9,
+    "within1_pct": 94.1,
+    "mae": 0.63,
+    "bias": -0.56,
+    "gt_peak": 2,
+    "sys_peak": 2
+   },
+   "zone_vision_lab": {
+    "seconds": 119,
+    "exact_pct": 94.1,
+    "within1_pct": 100.0,
+    "mae": 0.06,
+    "bias": 0.06,
+    "gt_peak": 1,
+    "sys_peak": 1
+   }
+  },
+  "fused_max_over_cameras": {
+   "zone_corridor": {
+    "seconds": 118,
+    "exact_pct": 95.8,
+    "within1_pct": 100.0,
+    "bias": 0.04
+   },
+   "zone_workroom": {
+    "seconds": 118,
+    "exact_pct": 30.5,
+    "within1_pct": 99.2,
+    "bias": -0.65
+   },
+   "zone_vision_lab": {
+    "seconds": 118,
+    "exact_pct": 89.0,
+    "within1_pct": 100.0,
+    "bias": -0.03
+   }
+  },
+  "detection": {
+   "cam_1": {
+    "frames": 69,
+    "gt_boxes": 69,
+    "pred_boxes": 69,
+    "true_positives": 65,
+    "precision": 0.942,
+    "recall": 0.942,
+    "id_switches": 1
+   },
+   "cam_2": {
+    "frames": 246,
+    "gt_boxes": 246,
+    "pred_boxes": 229,
+    "true_positives": 222,
+    "precision": 0.9694,
+    "recall": 0.9024,
+    "id_switches": 3
+   },
+   "cam_3": {
+    "frames": 124,
+    "gt_boxes": 124,
+    "pred_boxes": 121,
+    "true_positives": 106,
+    "precision": 0.876,
+    "recall": 0.8548,
+    "id_switches": 3
+   },
+   "cam_4": {
+    "frames": 593,
+    "gt_boxes": 752,
+    "pred_boxes": 217,
+    "true_positives": 201,
+    "precision": 0.9263,
+    "recall": 0.2673,
+    "id_switches": 5
+   },
+   "cam_5": {
+    "frames": 243,
+    "gt_boxes": 243,
+    "pred_boxes": 219,
+    "true_positives": 213,
+    "precision": 0.9726,
+    "recall": 0.8765,
+    "id_switches": 3
+   }
+  },
+  "observations": 573,
+  "metric": 174,
+  "room": 399,
+  "seconds": 199
+ },
+ "3": {
+  "twin_primary_camera": {
+   "zone_corridor": {
+    "seconds": 119,
+    "exact_pct": 79.8,
+    "within1_pct": 97.5,
+    "mae": 0.23,
+    "bias": 0.01,
+    "gt_peak": 2,
+    "sys_peak": 3
+   },
+   "zone_workroom": {
+    "seconds": 119,
+    "exact_pct": 82.4,
+    "within1_pct": 99.2,
+    "mae": 0.18,
+    "bias": 0.05,
+    "gt_peak": 2,
+    "sys_peak": 2
+   },
+   "zone_vision_lab": {
+    "seconds": 119,
+    "exact_pct": 85.7,
+    "within1_pct": 96.6,
+    "mae": 0.18,
+    "bias": 0.08,
+    "gt_peak": 2,
+    "sys_peak": 3
+   }
+  },
+  "fused_max_over_cameras": {
+   "zone_corridor": {
+    "seconds": 118,
+    "exact_pct": 89.0,
+    "within1_pct": 100.0,
+    "bias": 0.09
+   },
+   "zone_workroom": {
+    "seconds": 118,
+    "exact_pct": 85.6,
+    "within1_pct": 98.3,
+    "bias": 0.13
+   },
+   "zone_vision_lab": {
+    "seconds": 118,
+    "exact_pct": 87.3,
+    "within1_pct": 99.2,
+    "bias": 0.02
+   }
+  },
+  "detection": {
+   "cam_1": {
+    "frames": 96,
+    "gt_boxes": 118,
+    "pred_boxes": 116,
+    "true_positives": 98,
+    "precision": 0.8448,
+    "recall": 0.8305,
+    "id_switches": 3
+   },
+   "cam_2": {
+    "frames": 329,
+    "gt_boxes": 516,
+    "pred_boxes": 430,
+    "true_positives": 418,
+    "precision": 0.9721,
+    "recall": 0.8101,
+    "id_switches": 5
+   },
+   "cam_3": {
+    "frames": 185,
+    "gt_boxes": 295,
+    "pred_boxes": 291,
+    "true_positives": 254,
+    "precision": 0.8729,
+    "recall": 0.861,
+    "id_switches": 4
+   },
+   "cam_4": {
+    "frames": 235,
+    "gt_boxes": 359,
+    "pred_boxes": 353,
+    "true_positives": 337,
+    "precision": 0.9547,
+    "recall": 0.9387,
+    "id_switches": 3
+   },
+   "cam_5": {
+    "frames": 239,
+    "gt_boxes": 346,
+    "pred_boxes": 311,
+    "true_positives": 258,
+    "precision": 0.8296,
+    "recall": 0.7457,
+    "id_switches": 7
+   }
+  },
+  "observations": 1074,
+  "metric": 386,
+  "room": 688,
+  "seconds": 222
+ },
+ "4": {
+  "twin_primary_camera": {
+   "zone_corridor": {
+    "seconds": 239,
+    "exact_pct": 90.4,
+    "within1_pct": 100.0,
+    "mae": 0.1,
+    "bias": -0.05,
+    "gt_peak": 1,
+    "sys_peak": 1
+   },
+   "zone_workroom": {
+    "seconds": 239,
+    "exact_pct": 92.5,
+    "within1_pct": 99.6,
+    "mae": 0.08,
+    "bias": 0.05,
+    "gt_peak": 3,
+    "sys_peak": 5
+   },
+   "zone_vision_lab": {
+    "seconds": 239,
+    "exact_pct": 86.6,
+    "within1_pct": 100.0,
+    "mae": 0.13,
+    "bias": 0.04,
+    "gt_peak": 1,
+    "sys_peak": 2
+   }
+  },
+  "fused_max_over_cameras": {
+   "zone_corridor": {
+    "seconds": 238,
+    "exact_pct": 95.4,
+    "within1_pct": 100.0,
+    "bias": -0.0
+   },
+   "zone_workroom": {
+    "seconds": 238,
+    "exact_pct": 92.9,
+    "within1_pct": 99.6,
+    "bias": 0.02
+   },
+   "zone_vision_lab": {
+    "seconds": 238,
+    "exact_pct": 89.1,
+    "within1_pct": 100.0,
+    "bias": 0
+   }
+  },
+  "detection": {
+   "cam_1": {
+    "frames": 74,
+    "gt_boxes": 74,
+    "pred_boxes": 56,
+    "true_positives": 41,
+    "precision": 0.7321,
+    "recall": 0.5541,
+    "id_switches": 4
+   },
+   "cam_2": {
+    "frames": 413,
+    "gt_boxes": 413,
+    "pred_boxes": 314,
+    "true_positives": 308,
+    "precision": 0.9809,
+    "recall": 0.7458,
+    "id_switches": 3
+   },
+   "cam_3": {
+    "frames": 315,
+    "gt_boxes": 315,
+    "pred_boxes": 270,
+    "true_positives": 201,
+    "precision": 0.7444,
+    "recall": 0.6381,
+    "id_switches": 4
+   },
+   "cam_4": {
+    "frames": 1193,
+    "gt_boxes": 1621,
+    "pred_boxes": 1623,
+    "true_positives": 1568,
+    "precision": 0.9661,
+    "recall": 0.9673,
+    "id_switches": 4
+   },
+   "cam_5": {
+    "frames": 472,
+    "gt_boxes": 490,
+    "pred_boxes": 429,
+    "true_positives": 397,
+    "precision": 0.9254,
+    "recall": 0.8102,
+    "id_switches": 9
+   }
+  },
+  "observations": 2209,
+  "metric": 288,
+  "room": 1921,
+  "seconds": 459
+ },
+ "5": {
+  "twin_primary_camera": {
+   "zone_corridor": {
+    "seconds": 40,
+    "exact_pct": 25.0,
+    "within1_pct": 37.5,
+    "mae": 4.35,
+    "bias": -4.35,
+    "gt_peak": 14,
+    "sys_peak": 5
+   },
+   "zone_workroom": {
+    "seconds": 40,
+    "exact_pct": 52.5,
+    "within1_pct": 62.5,
+    "mae": 1.07,
+    "bias": 0.97,
+    "gt_peak": 6,
+    "sys_peak": 10
+   },
+   "zone_vision_lab": {
+    "seconds": 40,
+    "exact_pct": 65.0,
+    "within1_pct": 80.0,
+    "mae": 0.6,
+    "bias": 0.3,
+    "gt_peak": 14,
+    "sys_peak": 14
+   },
+   "zone_print_room": {
+    "seconds": 40,
+    "exact_pct": 100.0,
+    "within1_pct": 100.0,
+    "mae": 0,
+    "bias": 0,
+    "gt_peak": 0,
+    "sys_peak": 0
+   }
+  },
+  "fused_max_over_cameras": {
+   "zone_corridor": {
+    "seconds": 39,
+    "exact_pct": 28.2,
+    "within1_pct": 38.5,
+    "bias": -2.9
+   },
+   "zone_workroom": {
+    "seconds": 39,
+    "exact_pct": 51.3,
+    "within1_pct": 76.9,
+    "bias": 0.74
+   },
+   "zone_vision_lab": {
+    "seconds": 39,
+    "exact_pct": 56.4,
+    "within1_pct": 82.1,
+    "bias": 0.26
+   },
+   "zone_print_room": {
+    "seconds": 39,
+    "exact_pct": 100.0,
+    "within1_pct": 100.0,
+    "bias": 0
+   }
+  },
+  "detection": {
+   "cam_1": {
+    "frames": 78,
+    "gt_boxes": 163,
+    "pred_boxes": 154,
+    "true_positives": 98,
+    "precision": 0.6364,
+    "recall": 0.6012,
+    "id_switches": 5
+   },
+   "cam_2": {
+    "frames": 157,
+    "gt_boxes": 644,
+    "pred_boxes": 416,
+    "true_positives": 390,
+    "precision": 0.9375,
+    "recall": 0.6056,
+    "id_switches": 20
+   },
+   "cam_3": {
+    "frames": 97,
+    "gt_boxes": 676,
+    "pred_boxes": 620,
+    "true_positives": 553,
+    "precision": 0.8919,
+    "recall": 0.818,
+    "id_switches": 11
+   },
+   "cam_4": {
+    "frames": 91,
+    "gt_boxes": 450,
+    "pred_boxes": 427,
+    "true_positives": 394,
+    "precision": 0.9227,
+    "recall": 0.8756,
+    "id_switches": 4
+   },
+   "cam_5": {
+    "frames": 108,
+    "gt_boxes": 360,
+    "pred_boxes": 237,
+    "true_positives": 147,
+    "precision": 0.6203,
+    "recall": 0.4083,
+    "id_switches": 17
+   },
+   "cam_6": null
+  },
+  "observations": 1463,
+  "metric": 337,
+  "room": 1126,
+  "seconds": 89
+ },
+ "6": {
+  "twin_primary_camera": {
+   "zone_corridor": {
+    "seconds": 40,
+    "exact_pct": 80.0,
+    "within1_pct": 100.0,
+    "mae": 0.2,
+    "bias": -0.2,
+    "gt_peak": 1,
+    "sys_peak": 1
+   },
+   "zone_workroom": {
+    "seconds": 40,
+    "exact_pct": 0.0,
+    "within1_pct": 5.0,
+    "mae": 3.23,
+    "bias": -3.23,
+    "gt_peak": 5,
+    "sys_peak": 4
+   },
+   "zone_vision_lab": {
+    "seconds": 40,
+    "exact_pct": 100.0,
+    "within1_pct": 100.0,
+    "mae": 0,
+    "bias": 0,
+    "gt_peak": 0,
+    "sys_peak": 0
+   },
+   "zone_print_room": {
+    "seconds": 40,
+    "exact_pct": 100.0,
+    "within1_pct": 100.0,
+    "mae": 0,
+    "bias": 0,
+    "gt_peak": 0,
+    "sys_peak": 0
+   }
+  },
+  "fused_max_over_cameras": {
+   "zone_corridor": {
+    "seconds": 39,
+    "exact_pct": 97.4,
+    "within1_pct": 100.0,
+    "bias": 0.03
+   },
+   "zone_workroom": {
+    "seconds": 39,
+    "exact_pct": 0.0,
+    "within1_pct": 41.0,
+    "bias": -1.46
+   },
+   "zone_vision_lab": {
+    "seconds": 39,
+    "exact_pct": 100.0,
+    "within1_pct": 100.0,
+    "bias": 0
+   },
+   "zone_print_room": {
+    "seconds": 39,
+    "exact_pct": 100.0,
+    "within1_pct": 100.0,
+    "bias": 0
+   }
+  },
+  "detection": {
+   "cam_1": {
+    "frames": 42,
+    "gt_boxes": 42,
+    "pred_boxes": 42,
+    "true_positives": 42,
+    "precision": 1.0,
+    "recall": 1.0,
+    "id_switches": 0
+   },
+   "cam_2": {
+    "frames": 199,
+    "gt_boxes": 199,
+    "pred_boxes": 164,
+    "true_positives": 163,
+    "precision": 0.9939,
+    "recall": 0.8191,
+    "id_switches": 0
+   },
+   "cam_3": null,
+   "cam_4": {
+    "frames": 200,
+    "gt_boxes": 403,
+    "pred_boxes": 290,
+    "true_positives": 173,
+    "precision": 0.5966,
+    "recall": 0.4293,
+    "id_switches": 1
+   },
+   "cam_5": {
+    "frames": 200,
+    "gt_boxes": 665,
+    "pred_boxes": 659,
+    "true_positives": 338,
+    "precision": 0.5129,
+    "recall": 0.5083,
+    "id_switches": 4
+   },
+   "cam_6": null
+  },
+  "observations": 454,
+  "metric": 78,
+  "room": 376,
+  "seconds": 62
+ },
+ "7": {
+  "twin_primary_camera": {
+   "zone_corridor": {
+    "seconds": 40,
+    "exact_pct": 52.5,
+    "within1_pct": 100.0,
+    "mae": 0.47,
+    "bias": -0.47,
+    "gt_peak": 1,
+    "sys_peak": 1
+   },
+   "zone_workroom": {
+    "seconds": 40,
+    "exact_pct": 0.0,
+    "within1_pct": 0.0,
+    "mae": 3.85,
+    "bias": -3.85,
+    "gt_peak": 6,
+    "sys_peak": 2
+   },
+   "zone_vision_lab": {
+    "seconds": 40,
+    "exact_pct": 92.5,
+    "within1_pct": 100.0,
+    "mae": 0.07,
+    "bias": 0.07,
+    "gt_peak": 0,
+    "sys_peak": 1
+   },
+   "zone_print_room": {
+    "seconds": 40,
+    "exact_pct": 100.0,
+    "within1_pct": 100.0,
+    "mae": 0,
+    "bias": 0,
+    "gt_peak": 0,
+    "sys_peak": 0
+   }
+  },
+  "fused_max_over_cameras": {
+   "zone_corridor": {
+    "seconds": 39,
+    "exact_pct": 89.7,
+    "within1_pct": 100.0,
+    "bias": -0.05
+   },
+   "zone_workroom": {
+    "seconds": 39,
+    "exact_pct": 2.6,
+    "within1_pct": 64.1,
+    "bias": -1.21
+   },
+   "zone_vision_lab": {
+    "seconds": 39,
+    "exact_pct": 92.3,
+    "within1_pct": 100.0,
+    "bias": 0.08
+   },
+   "zone_print_room": {
+    "seconds": 39,
+    "exact_pct": 100.0,
+    "within1_pct": 100.0,
+    "bias": 0
+   }
+  },
+  "detection": {
+   "cam_1": {
+    "frames": 75,
+    "gt_boxes": 75,
+    "pred_boxes": 75,
+    "true_positives": 73,
+    "precision": 0.9733,
+    "recall": 0.9733,
+    "id_switches": 0
+   },
+   "cam_2": {
+    "frames": 126,
+    "gt_boxes": 126,
+    "pred_boxes": 104,
+    "true_positives": 103,
+    "precision": 0.9904,
+    "recall": 0.8175,
+    "id_switches": 0
+   },
+   "cam_3": {
+    "frames": 9,
+    "gt_boxes": 9,
+    "pred_boxes": 8,
+    "true_positives": 7,
+    "precision": 0.875,
+    "recall": 0.7778,
+    "id_switches": 0
+   },
+   "cam_4": {
+    "frames": 200,
+    "gt_boxes": 456,
+    "pred_boxes": 256,
+    "true_positives": 200,
+    "precision": 0.7812,
+    "recall": 0.4386,
+    "id_switches": 0
+   },
+   "cam_5": {
+    "frames": 200,
+    "gt_boxes": 756,
+    "pred_boxes": 739,
+    "true_positives": 688,
+    "precision": 0.931,
+    "recall": 0.9101,
+    "id_switches": 5
+   },
+   "cam_6": null
+  },
+  "observations": 369,
+  "metric": 47,
+  "room": 322,
+  "seconds": 60
+ },
+ "8": {
+  "twin_primary_camera": {
+   "zone_corridor": {
+    "seconds": 40,
+    "exact_pct": 92.5,
+    "within1_pct": 100.0,
+    "mae": 0.07,
+    "bias": -0.07,
+    "gt_peak": 2,
+    "sys_peak": 1
+   },
+   "zone_workroom": {
+    "seconds": 40,
+    "exact_pct": 7.5,
+    "within1_pct": 70.0,
+    "mae": 1.25,
+    "bias": -1.25,
+    "gt_peak": 4,
+    "sys_peak": 3
+   },
+   "zone_vision_lab": {
+    "seconds": 40,
+    "exact_pct": 100.0,
+    "within1_pct": 100.0,
+    "mae": 0,
+    "bias": 0,
+    "gt_peak": 0,
+    "sys_peak": 0
+   },
+   "zone_print_room": {
+    "seconds": 40,
+    "exact_pct": 100.0,
+    "within1_pct": 100.0,
+    "mae": 0,
+    "bias": 0,
+    "gt_peak": 0,
+    "sys_peak": 0
+   }
+  },
+  "fused_max_over_cameras": {
+   "zone_corridor": {
+    "seconds": 39,
+    "exact_pct": 89.7,
+    "within1_pct": 100.0,
+    "bias": -0.05
+   },
+   "zone_workroom": {
+    "seconds": 39,
+    "exact_pct": 5.1,
+    "within1_pct": 66.7,
+    "bias": -1.15
+   },
+   "zone_vision_lab": {
+    "seconds": 39,
+    "exact_pct": 100.0,
+    "within1_pct": 100.0,
+    "bias": 0
+   },
+   "zone_print_room": {
+    "seconds": 39,
+    "exact_pct": 100.0,
+    "within1_pct": 100.0,
+    "bias": 0
+   }
+  },
+  "detection": {
+   "cam_1": {
+    "frames": 15,
+    "gt_boxes": 15,
+    "pred_boxes": 14,
+    "true_positives": 4,
+    "precision": 0.2857,
+    "recall": 0.2667,
+    "id_switches": 0
+   },
+   "cam_2": {
+    "frames": 200,
+    "gt_boxes": 208,
+    "pred_boxes": 200,
+    "true_positives": 198,
+    "precision": 0.99,
+    "recall": 0.9519,
+    "id_switches": 0
+   },
+   "cam_3": null,
+   "cam_4": {
+    "frames": 200,
+    "gt_boxes": 449,
+    "pred_boxes": 465,
+    "true_positives": 267,
+    "precision": 0.5742,
+    "recall": 0.5947,
+    "id_switches": 0
+   },
+   "cam_5": {
+    "frames": 173,
+    "gt_boxes": 243,
+    "pred_boxes": 241,
+    "true_positives": 168,
+    "precision": 0.6971,
+    "recall": 0.6914,
+    "id_switches": 1
+   },
+   "cam_6": null
+  },
+  "observations": 665,
+  "metric": 200,
+  "room": 465,
+  "seconds": 90
+ },
+ "9": {
+  "twin_primary_camera": {
+   "zone_corridor": {
+    "seconds": 40,
+    "exact_pct": 100.0,
+    "within1_pct": 100.0,
+    "mae": 0,
+    "bias": 0,
+    "gt_peak": 0,
+    "sys_peak": 0
+   },
+   "zone_workroom": {
+    "seconds": 40,
+    "exact_pct": 7.5,
+    "within1_pct": 47.5,
+    "mae": 1.55,
+    "bias": -1.55,
+    "gt_peak": 8,
+    "sys_peak": 8
+   },
+   "zone_vision_lab": {
+    "seconds": 40,
+    "exact_pct": 100.0,
+    "within1_pct": 100.0,
+    "mae": 0,
+    "bias": 0,
+    "gt_peak": 0,
+    "sys_peak": 0
+   },
+   "zone_print_room": {
+    "seconds": 40,
+    "exact_pct": 100.0,
+    "within1_pct": 100.0,
+    "mae": 0,
+    "bias": 0,
+    "gt_peak": 0,
+    "sys_peak": 0
+   }
+  },
+  "fused_max_over_cameras": {
+   "zone_corridor": {
+    "seconds": 39,
+    "exact_pct": 100.0,
+    "within1_pct": 100.0,
+    "bias": 0
+   },
+   "zone_workroom": {
+    "seconds": 39,
+    "exact_pct": 2.6,
+    "within1_pct": 35.9,
+    "bias": -1.41
+   },
+   "zone_vision_lab": {
+    "seconds": 39,
+    "exact_pct": 100.0,
+    "within1_pct": 100.0,
+    "bias": 0
+   },
+   "zone_print_room": {
+    "seconds": 39,
+    "exact_pct": 100.0,
+    "within1_pct": 100.0,
+    "bias": 0
+   }
+  },
+  "detection": {
+   "cam_1": null,
+   "cam_2": null,
+   "cam_3": null,
+   "cam_4": {
+    "frames": 200,
+    "gt_boxes": 1171,
+    "pred_boxes": 1213,
+    "true_positives": 808,
+    "precision": 0.6661,
+    "recall": 0.69,
+    "id_switches": 0
+   },
+   "cam_5": {
+    "frames": 200,
+    "gt_boxes": 1133,
+    "pred_boxes": 994,
+    "true_positives": 869,
+    "precision": 0.8742,
+    "recall": 0.767,
+    "id_switches": 13
+   },
+   "cam_6": null
+  },
+  "observations": 1213,
+  "metric": 0,
+  "room": 1213,
+  "seconds": 79
+ },
+ "10": {
+  "twin_primary_camera": {
+   "zone_corridor": {
+    "seconds": 40,
+    "exact_pct": 100.0,
+    "within1_pct": 100.0,
+    "mae": 0,
+    "bias": 0,
+    "gt_peak": 1,
+    "sys_peak": 1
+   },
+   "zone_workroom": {
+    "seconds": 40,
+    "exact_pct": 0.0,
+    "within1_pct": 10.0,
+    "mae": 3.1,
+    "bias": -3.1,
+    "gt_peak": 8,
+    "sys_peak": 7
+   },
+   "zone_vision_lab": {
+    "seconds": 40,
+    "exact_pct": 100.0,
+    "within1_pct": 100.0,
+    "mae": 0,
+    "bias": 0,
+    "gt_peak": 0,
+    "sys_peak": 0
+   },
+   "zone_print_room": {
+    "seconds": 40,
+    "exact_pct": 100.0,
+    "within1_pct": 100.0,
+    "mae": 0,
+    "bias": 0,
+    "gt_peak": 0,
+    "sys_peak": 0
+   }
+  },
+  "fused_max_over_cameras": {
+   "zone_corridor": {
+    "seconds": 39,
+    "exact_pct": 97.4,
+    "within1_pct": 100.0,
+    "bias": 0.03
+   },
+   "zone_workroom": {
+    "seconds": 39,
+    "exact_pct": 0.0,
+    "within1_pct": 0.0,
+    "bias": -2.74
+   },
+   "zone_vision_lab": {
+    "seconds": 39,
+    "exact_pct": 100.0,
+    "within1_pct": 100.0,
+    "bias": 0
+   },
+   "zone_print_room": {
+    "seconds": 39,
+    "exact_pct": 100.0,
+    "within1_pct": 100.0,
+    "bias": 0
+   }
+  },
+  "detection": {
+   "cam_1": null,
+   "cam_2": {
+    "frames": 200,
+    "gt_boxes": 200,
+    "pred_boxes": 200,
+    "true_positives": 200,
+    "precision": 1.0,
+    "recall": 1.0,
+    "id_switches": 0
+   },
+   "cam_3": null,
+   "cam_4": {
+    "frames": 200,
+    "gt_boxes": 1025,
+    "pred_boxes": 765,
+    "true_positives": 713,
+    "precision": 0.932,
+    "recall": 0.6956,
+    "id_switches": 7
+   },
+   "cam_5": {
+    "frames": 200,
+    "gt_boxes": 850,
+    "pred_boxes": 759,
+    "true_positives": 736,
+    "precision": 0.9697,
+    "recall": 0.8659,
+    "id_switches": 16
+   },
+   "cam_6": null
+  },
+  "observations": 965,
+  "metric": 200,
+  "room": 765,
+  "seconds": 73
+ },
+ "11": {
+  "twin_primary_camera": {
+   "zone_corridor": {
+    "seconds": 40,
+    "exact_pct": 17.5,
+    "within1_pct": 27.5,
+    "mae": 4.38,
+    "bias": -3.02,
+    "gt_peak": 14,
+    "sys_peak": 6
+   },
+   "zone_workroom": {
+    "seconds": 40,
+    "exact_pct": 15.0,
+    "within1_pct": 80.0,
+    "mae": 1.38,
+    "bias": 0.38,
+    "gt_peak": 7,
+    "sys_peak": 9
+   },
+   "zone_vision_lab": {
+    "seconds": 40,
+    "exact_pct": 50.0,
+    "within1_pct": 55.0,
+    "mae": 1.75,
+    "bias": -1.75,
+    "gt_peak": 14,
+    "sys_peak": 13
+   },
+   "zone_print_room": {
+    "seconds": 40,
+    "exact_pct": 100.0,
+    "within1_pct": 100.0,
+    "mae": 0,
+    "bias": 0,
+    "gt_peak": 0,
+    "sys_peak": 0
+   }
+  },
+  "fused_max_over_cameras": {
+   "zone_corridor": {
+    "seconds": 39,
+    "exact_pct": 20.5,
+    "within1_pct": 30.8,
+    "bias": -1.85
+   },
+   "zone_workroom": {
+    "seconds": 39,
+    "exact_pct": 20.5,
+    "within1_pct": 84.6,
+    "bias": 0.38
+   },
+   "zone_vision_lab": {
+    "seconds": 39,
+    "exact_pct": 51.3,
+    "within1_pct": 53.8,
+    "bias": -1.59
+   },
+   "zone_print_room": {
+    "seconds": 39,
+    "exact_pct": 100.0,
+    "within1_pct": 100.0,
+    "bias": 0
+   }
+  },
+  "detection": {
+   "cam_1": {
+    "frames": 83,
+    "gt_boxes": 191,
+    "pred_boxes": 169,
+    "true_positives": 135,
+    "precision": 0.7988,
+    "recall": 0.7068,
+    "id_switches": 6
+   },
+   "cam_2": {
+    "frames": 152,
+    "gt_boxes": 524,
+    "pred_boxes": 451,
+    "true_positives": 379,
+    "precision": 0.8404,
+    "recall": 0.7233,
+    "id_switches": 10
+   },
+   "cam_3": {
+    "frames": 88,
+    "gt_boxes": 625,
+    "pred_boxes": 533,
+    "true_positives": 465,
+    "precision": 0.8724,
+    "recall": 0.744,
+    "id_switches": 10
+   },
+   "cam_4": {
+    "frames": 102,
+    "gt_boxes": 447,
+    "pred_boxes": 437,
+    "true_positives": 401,
+    "precision": 0.9176,
+    "recall": 0.8971,
+    "id_switches": 5
+   },
+   "cam_5": {
+    "frames": 118,
+    "gt_boxes": 340,
+    "pred_boxes": 265,
+    "true_positives": 198,
+    "precision": 0.7472,
+    "recall": 0.5824,
+    "id_switches": 19
+   },
+   "cam_6": null
+  },
+  "observations": 1423,
+  "metric": 354,
+  "room": 1069,
+  "seconds": 82
+ }
+}

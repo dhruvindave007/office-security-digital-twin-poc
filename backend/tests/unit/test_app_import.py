@@ -34,3 +34,22 @@ def test_import_src_rules_engine():
 
 def test_import_src_vision_pipeline():
     _run_import("import src.vision.pipeline")
+
+
+def test_import_src_access_service():
+    _run_import("import src.access.service")
+
+
+def test_import_src_rules_correlation():
+    _run_import("import src.rules.correlation")
+
+
+def test_import_src_api_routes_access():
+    _run_import("import src.api.routes_access")
+
+
+def test_import_src_main_no_vision_heavy_libs():
+    _run_import("import src.main, sys; assert not ({'cv2', 'torch', 'ultralytics'} & set(sys.modules))")
+
+
+
