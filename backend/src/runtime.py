@@ -4,7 +4,9 @@ Used by both the FastAPI lifespan (main.py) and the vision CLI (vision/cli.py) s
 never drift apart. Must not import cv2, torch or ultralytics at module level.
 """
 from dataclasses import dataclass
+import json
 import logging
+from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
 try:
@@ -66,6 +68,26 @@ class Runtime:
     investigation_service: Optional[InvestigationService] = None
 
 
+def _site_camera_modes(settings: Any) -> Dict[str, str]:
+    """{camera_id: 'metric'|'room'} from the live site's calibration, if a live config is set."""
+    path = getattr(settings, "live_config_path", "")
+    if not path:
+        return {}
+    try:
+        try:
+            from src.live.config import load_live_config
+        except ImportError:
+            from live.config import load_live_config
+        cfg = load_live_config(path)
+        if not cfg.calibration_path:
+            return {}
+        cal = json.loads(Path(cfg.calibration_path).read_text(encoding="utf-8"))
+        return {c: cc.get("mode", "room") for c, cc in cal.get("cameras", {}).items()}
+    except Exception as e:
+        logger.warning(f"Could not read camera calibration modes for investigations: {e}")
+        return {}
+
+
 def make_investigation_service(settings: Any, store: Any, policy: Any = None, access_config: Any = None,
                                topology: Any = None) -> InvestigationService:
     """Bedrock investigation service. Creating it makes no AWS call (the boto3 client is lazy)."""
@@ -79,7 +101,9 @@ def make_investigation_service(settings: Any, store: Any, policy: Any = None, ac
     return InvestigationService(
         bedrock_client=client,
         store=store,
-        evidence_builder=EvidenceBuilder(store, policy=policy, access_config=access_config, topology=topology),
+        evidence_builder=EvidenceBuilder(store, policy=policy, access_config=access_config, topology=topology,
+                                         camera_modes=_site_camera_modes(settings),
+                                         position_sample_seconds=getattr(settings, "twin_position_sample_seconds", 0.0)),
         model_id=settings.bedrock_investigation_model_id,
         max_output_tokens=settings.investigation_max_output_tokens,
         daily_budget_usd=settings.investigation_daily_budget_usd,

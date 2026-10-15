@@ -80,3 +80,8 @@ data/sites/*/runs/*.json
 data/sites/*/runs/*.mp4
 !data/sites/*/runs/validation.json
 tools/
+
+# Runtime output (live mode)
+backend/data/evidence/
+backend/data/*.log
+backend/data/*.db*

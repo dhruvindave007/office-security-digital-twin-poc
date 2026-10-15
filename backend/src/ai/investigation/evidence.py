@@ -47,8 +47,13 @@ def _incident_dict(i) -> Dict[str, Any]:
 
 
 class EvidenceBuilder:
-    def __init__(self, store, policy=None, access_config=None, topology=None):
+    def __init__(self, store, policy=None, access_config=None, topology=None,
+                 camera_modes: Optional[Dict[str, str]] = None, position_sample_seconds: float = 0.0):
         self.store = store
+        # How each camera positions people ("metric" homography or "room" level), so the model does not
+        # mistake room-level placement (everyone at the room centre) for a sensor fault.
+        self.camera_modes = camera_modes or {}
+        self.position_sample_seconds = position_sample_seconds
         self.policy = policy
         self.access_config = access_config
         self.topology = topology
@@ -95,8 +100,12 @@ class EvidenceBuilder:
             and (i.zone_id == incident.zone_id or (i.track_id and i.track_id in involved_tracks))
         ]
 
+        inc_view = _incident_dict(incident)
+        if len(supporting) >= 50:
+            inc_view["supporting_event_ids_note"] = ("long-running incident: only its first 20 and latest 30 "
+                                                     "supporting events are listed")
         return {
-            "incident": _incident_dict(incident),
+            "incident": inc_view,
             "related_incidents": related[:20],
             "events": [_event_dict(e) for e in ordered],
             "events_truncated": truncated,
@@ -126,5 +135,16 @@ class EvidenceBuilder:
             ctx["camera_min_transit_seconds"] = {
                 f"{a}->{b}": self.topology.min_transit_seconds(a, b) for a in cams for b in cams if a < b
             }
+        modes = {c: self.camera_modes[c] for c in sorted(cameras) if c in self.camera_modes}
+        if modes:
+            ctx["camera_positioning"] = {
+                c: ("metric: x,y is the person's measured floor position" if m == "metric" else
+                    "room-level: this camera only tells which room a person is in; every person it sees is "
+                    "placed at the room's centre point, so identical coordinates are expected, not a fault")
+                for c, m in modes.items()}
+        if self.position_sample_seconds > 0:
+            ctx["position_sampling_note"] = (f"PERSON_DETECTED positions are stored at most once every "
+                                             f"{self.position_sample_seconds:g} s per track; tracking is continuous "
+                                             f"between stored samples")
         ctx["identity_note"] = "track_id and person_id are system labels, not verified identities."
         return ctx

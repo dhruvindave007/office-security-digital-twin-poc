@@ -58,3 +58,16 @@ def test_open_incident_evidence_list_is_bounded():
         first = first or json.loads(out[0].supporting_event_ids_json)[0]
     ids = json.loads(store.get_incident(out[0].incident_id).supporting_event_ids_json)
     assert len(ids) == 50 and ids[0] == first             # start of the incident kept, then the latest 30
+
+
+def test_evidence_labels_room_level_cameras_sampling_and_capped_lists():
+    from src.ai.investigation.evidence import EvidenceBuilder
+    eng, store = _engine(1.0)
+    rules = IncidentRuleEngine(store, eng.state, AccessPolicy(version=1, restricted_zones={}))
+    out = []
+    for i in range(80):
+        out = rules.evaluate(eng.ingest_observation("a", "c", 5, 5, f"2026-01-15T02:{i // 60:02d}:{i % 60:02d}Z")) or out
+    pkt = EvidenceBuilder(store, camera_modes={"c": "room"}, position_sample_seconds=1.0).build(out[0].incident_id)
+    assert "room's centre point" in pkt["context"]["camera_positioning"]["c"]
+    assert "once every 1 s" in pkt["context"]["position_sampling_note"]
+    assert "first 20 and latest 30" in pkt["incident"]["supporting_event_ids_note"]
