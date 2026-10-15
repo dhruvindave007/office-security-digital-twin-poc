@@ -6,6 +6,7 @@ at which it was read. Lost streams are reopened with exponential backoff.
 """
 from datetime import datetime, timezone
 import logging
+import os
 from pathlib import Path
 import threading
 import time
@@ -36,6 +37,9 @@ class FrameSource:
         self.source_fps = 0.0
         self.last_error: Optional[str] = None
         self.size: Optional[Tuple[int, int]] = None  # (width, height)
+        # File replay: wall-clock time the current pass through the file started (first frame read).
+        self.loop_started_at: Optional[datetime] = None
+        self.loops = 0
 
     # -- lifecycle -------------------------------------------------------------------------
     def start(self) -> None:
@@ -70,7 +74,13 @@ class FrameSource:
         import cv2
         if self.is_file and not Path(self.url).exists():
             raise FileNotFoundError(self.url)
-        cap = cv2.VideoCapture(self.url)
+        if self.is_file:
+            cap = cv2.VideoCapture(self.url)
+        else:
+            # RTSP over TCP (UDP loses packets -> smeared pictures); open/read time out instead of hanging.
+            os.environ.setdefault("OPENCV_FFMPEG_CAPTURE_OPTIONS", "rtsp_transport;tcp")
+            cap = cv2.VideoCapture(self.url, cv2.CAP_FFMPEG, [cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 8000,
+                                                              cv2.CAP_PROP_READ_TIMEOUT_MSEC, 5000])
         try:  # network streams: keep the driver's own buffer minimal so we see the newest frame
             cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         except Exception:
@@ -121,6 +131,7 @@ class FrameSource:
         period = 1.0 / fps if (self.is_file and self.realtime and 0 < fps <= 120) else 0.0
         t_next = time.monotonic()
         window_t, window_n = time.monotonic(), 0
+        first, slow_windows = True, 0
         while not self._stop.is_set():
             ok, frame = cap.read()
             if not ok or frame is None:
@@ -129,6 +140,11 @@ class FrameSource:
                 self.last_error = "stream read failed"
                 return False
             now = datetime.now(timezone.utc)
+            if first:
+                self.last_error = None   # connected and delivering again
+                if self.is_file:
+                    self.loop_started_at, self.loops = now, self.loops + 1
+                first = False
             with self._cond:
                 self._frame, self._captured_at = frame, now
                 self._seq += 1
@@ -140,6 +156,15 @@ class FrameSource:
             if time.monotonic() - window_t >= 2.0:
                 self.source_fps = round(window_n / (time.monotonic() - window_t), 1)
                 window_t, window_n = time.monotonic(), 0
+                # A network stream at under half its own frame rate for 6 s is degraded (seen live:
+                # a stream joined while its publisher was starting stayed at ~3 fps): reconnect.
+                if not self.is_file and 0 < fps <= 120 and self.source_fps < 0.5 * fps:
+                    slow_windows += 1
+                    if slow_windows >= 3:
+                        self.last_error = f"stream degraded ({self.source_fps} of {fps:.0f} fps); reconnecting"
+                        return False
+                else:
+                    slow_windows = 0
             if period:
                 t_next += period
                 delay = t_next - time.monotonic()
@@ -151,7 +176,7 @@ class FrameSource:
 
     def status(self) -> dict:
         return {"state": self.state, "url": _redact(self.url), "frames_read": self.frames_read,
-                "source_fps": self.source_fps, "reconnects": self.reconnects,
+                "source_fps": self.source_fps if self.state == "live" else 0.0, "reconnects": self.reconnects,
                 "size": list(self.size) if self.size else None, "last_error": self.last_error}
 
 
