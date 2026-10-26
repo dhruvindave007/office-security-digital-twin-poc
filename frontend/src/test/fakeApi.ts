@@ -5,6 +5,7 @@ import type { Incident, InvestigationList, LiveStatus, Site, TwinState, Zone } f
 export const NOW_ISO = () => new Date().toISOString();
 
 export const site: Site = {
+  name: 'WiseNET · floor R+3',
   live_config: 'live.yaml',
   notes: [],
   cameras: [
@@ -56,6 +57,7 @@ export function installApi(overrides: Record<string, Handler> = {}, incidents: I
   const server: FakeServer = {
     calls: [],
     routes: {
+      'GET /api/auth/status': () => ({ auth_required: false, authenticated: true }),
       'GET /api/site': () => site,
       'GET /api/twin/zones': () => zones,
       'GET /api/twin/state': () => twin(),

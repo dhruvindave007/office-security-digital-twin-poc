@@ -2,7 +2,7 @@ from functools import lru_cache
 import json
 from typing import List, Union
 
-from pydantic import field_validator
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -17,8 +17,15 @@ class Settings(BaseSettings):
 
     app_name: str = "Office Vision Intelligence Platform"
     app_env: str = "development"
-    debug: bool = True
-    host: str = "0.0.0.0"
+    site_name: str = "Demo office"           # shown in the dashboard header, e.g. "HQ · floor 3"
+    debug: bool = False                      # True shows tracebacks in API errors: never in production
+    host: str = "127.0.0.1"                  # loopback by default; expose deliberately (with api_token)
+
+    # Access control (src/api/security.py). Empty token -> only local connections are answered.
+    # Generate one with: python -c "import secrets; print(secrets.token_urlsafe(32))"
+    api_token: str = Field(default="", validation_alias=AliasChoices("OVT_API_TOKEN", "API_TOKEN"))
+    cookie_secure: bool = False              # True when served over HTTPS (adds Secure cookie + HSTS)
+    session_hours: float = 12.0
     port: int = 8000
     cors_origins: List[str] = [
         "http://localhost:5173",
@@ -90,6 +97,14 @@ class Settings(BaseSettings):
     simulator_scenarios_dir: str = "data/scenarios"
     access_config_path: str = "data/access/doors.yaml"
 
+
+    @field_validator("api_token")
+    @classmethod
+    def strong_token(cls, v: str) -> str:
+        v = v.strip()
+        if v and len(v) < 24:
+            raise ValueError("OVT_API_TOKEN must be at least 24 characters (use secrets.token_urlsafe(32))")
+        return v
 
     @field_validator("cors_origins", mode="before")
     @classmethod

@@ -175,7 +175,7 @@ async def get_zones(request: Request):
 async def get_events(
     request: Request,
     limit: int = Query(50, ge=1, le=500),
-    offset: int = Query(0, ge=0),
+    offset: int = Query(0, ge=0, le=10_000_000),
     zone_id: Optional[str] = None,
     track_id: Optional[str] = None,
     event_type: Optional[str] = None,

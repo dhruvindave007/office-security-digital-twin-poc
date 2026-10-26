@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 import json
 import logging
 import re
+import threading
 from typing import Any, Dict, List, Optional
 
 try:
@@ -78,6 +79,9 @@ class InvestigationService:
         self.max_output_tokens = max_output_tokens
         self.daily_budget_usd = daily_budget_usd
         self.effort = effort
+        # One investigation at a time: the budget check and the spend it guards must not interleave,
+        # or N concurrent requests would all pass the check and overshoot the daily budget.
+        self._budget_lock = threading.Lock()
         self.claim_judge = claim_judge
         self.claim_checker = ClaimChecker(bedrock_client, model_id, effort=effort)
 
@@ -86,6 +90,10 @@ class InvestigationService:
         return self.store.sum_investigation_cost_since(midnight.isoformat())
 
     def investigate(self, incident_id: str, question: str = "") -> Dict[str, Any]:
+        with self._budget_lock:
+            return self._investigate(incident_id, question)
+
+    def _investigate(self, incident_id: str, question: str = "") -> Dict[str, Any]:
         evidence = self.evidence_builder.build(incident_id)
         if evidence is None:
             raise IncidentNotFoundError(incident_id)

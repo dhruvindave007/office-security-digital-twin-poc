@@ -68,7 +68,7 @@ export interface SiteDoor {
   jambs_m: [number, number][] | null;
 }
 
-export interface Site { cameras: SiteCamera[]; doors: SiteDoor[]; notes: string[]; live_config: string | null }
+export interface Site { name?: string; cameras: SiteCamera[]; doors: SiteDoor[]; notes: string[]; live_config: string | null }
 
 export interface LatencyStat { p50: number | null; p95: number | null }
 

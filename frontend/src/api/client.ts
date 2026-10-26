@@ -11,6 +11,9 @@ export class ApiError extends Error {
   }
 }
 
+/** Fired on window when the server answers 401: the dashboard returns to the sign-in screen. */
+export const UNAUTHORIZED_EVENT = 'ovt:unauthorized';
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let res: Response;
   try {
@@ -19,6 +22,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new ApiError(0, 'Backend unreachable');
   }
   if (!res.ok) {
+    if (res.status === 401 && !path.startsWith('/api/auth/')) window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
     let detail = `${res.status} ${res.statusText}`;
     try {
       const body = await res.json();
@@ -53,6 +57,12 @@ export const api = {
   runScenario: (name: string) =>
     request<{ incidents: string[]; errors: string[]; steps_processed: number }>(`/api/simulator/scenarios/${encodeURIComponent(name)}/run`, { method: 'POST' }),
   heatmap: (startIso: string, cell = 0.5) => request<Heatmap>(`/api/twin/heatmap?start_time=${encodeURIComponent(startIso)}&cell_size_m=${cell}`),
+};
+
+export const auth = {
+  status: () => request<{ auth_required: boolean; authenticated: boolean }>('/api/auth/status'),
+  login: (token: string) => request<{ authenticated: boolean }>('/api/auth/login', { method: 'POST', body: JSON.stringify({ token }) }),
+  logout: () => request<{ authenticated: boolean }>('/api/auth/logout', { method: 'POST' }),
 };
 
 export const frameUrl = (cameraId: string, width = 640) => `/api/live/cameras/${encodeURIComponent(cameraId)}/frame.jpg?width=${width}`;

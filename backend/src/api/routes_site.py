@@ -68,6 +68,7 @@ def get_site(request: Request) -> Dict[str, Any]:
             })
 
     return {
+        "name": settings.site_name,
         "floorplan_seed": Path(settings.twin_floorplan_seed_path).parent.name or None,
         "live_config": Path(settings.live_config_path).name if settings.live_config_path else None,
         "cameras": cameras,

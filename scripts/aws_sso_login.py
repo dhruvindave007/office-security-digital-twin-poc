@@ -1,17 +1,23 @@
 """AWS IAM Identity Center (SSO) browser sign-in without the AWS CLI (no admin rights needed).
 
-Usage (from backend/):  .\.venv\Scripts\python.exe ..\scripts\aws_sso_login.py
-Opens Edge with a one-time code; approve it. Writes ~/.aws/config [sso-session my-sso]
+Usage (from backend/, Windows shown; use `export` on macOS/Linux):
+    set AWS_SSO_START_URL=https://<your-org>.awsapps.com/start   (required: your organisation's portal)
+    set AWS_SSO_REGION=us-east-1                                  (optional: Identity Center region)
+    set AWS_SSO_SESSION=office-vision-sso                         (optional: name of the config section)
+    .venv/Scripts/python.exe ../scripts/aws_sso_login.py
+Opens your browser with a one-time code; approve it. Writes ~/.aws/config [sso-session <AWS_SSO_SESSION>]
 and a botocore-compatible token cache, so boto3 (profiles "default" / "office-vision")
 works and refreshes credentials automatically. Never prints tokens.
 """
-import datetime as dt, hashlib, json, os, subprocess, sys, time
+import datetime as dt, hashlib, json, os, sys, time, webbrowser
 from pathlib import Path
 import boto3
 
-START_URL = "https://YOUR-ORG.awsapps.com/start"
-SSO_REGION = "us-east-1"
-SESSION = "my-sso"
+START_URL = os.environ.get("AWS_SSO_START_URL", "").strip()
+SSO_REGION = os.environ.get("AWS_SSO_REGION", "us-east-1")
+SESSION = os.environ.get("AWS_SSO_SESSION", "office-vision-sso")
+if not START_URL.startswith("https://"):
+    sys.exit("Set AWS_SSO_START_URL to your organisation's IAM Identity Center portal, e.g. https://<org>.awsapps.com/start")
 
 oidc = boto3.client("sso-oidc", region_name=SSO_REGION)
 reg = oidc.register_client(clientName="office-vision-poc", clientType="public",
@@ -19,8 +25,9 @@ reg = oidc.register_client(clientName="office-vision-poc", clientType="public",
                            grantTypes=["urn:ietf:params:oauth:grant-type:device_code", "refresh_token"])
 auth = oidc.start_device_authorization(clientId=reg["clientId"], clientSecret=reg["clientSecret"], startUrl=START_URL)
 print("USER CODE (must match the browser page):", auth["userCode"], flush=True)
-subprocess.Popen(["cmd", "/c", "start", "", "msedge", auth["verificationUriComplete"]])
-print("Edge opened. Waiting for approval...", flush=True)
+webbrowser.open(auth["verificationUriComplete"])
+print("Browser opened (or open this link yourself):", auth["verificationUriComplete"], flush=True)
+print("Waiting for approval...", flush=True)
 
 deadline = time.time() + min(auth["expiresIn"], 600)
 interval = auth.get("interval", 5)

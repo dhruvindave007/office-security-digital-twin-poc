@@ -62,7 +62,7 @@ export function TopBar({ onSeverity, minSeverity = null }: { onSeverity?: (s: Se
     <header className="shrink-0 flex items-center gap-4 h-11 px-3 border-b border-ink-700 bg-ink-900 text-xs" role="banner">
       <div className="flex items-baseline gap-2 min-w-0">
         <span className="font-bold tracking-wide text-fg">OFFICE VISION TWIN</span>
-        <span className="text-fg-muted truncate">WiseNET · floor R+3{state.site?.live_config ? '' : ' · no live cameras configured'}</span>
+        <span className="text-fg-muted truncate">{state.site?.name ?? 'Site'}{state.site?.live_config ? '' : ' · no live cameras configured'}</span>
       </div>
       <div className="flex items-center gap-1.5 font-semibold tracking-wider" data-testid="conn" title="push channel (GET /api/stream)">
         <Dot tone={conn.tone} />
