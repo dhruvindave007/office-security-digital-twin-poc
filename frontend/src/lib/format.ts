@@ -71,3 +71,13 @@ export function sortIncidents(list: Incident[]): Incident[] {
     || SEVERITY_RANK[b.severity] - SEVERITY_RANK[a.severity]
     || parseTs(b.start_time) - parseTs(a.start_time));
 }
+
+export const isSimulated = (i: Incident) => !!i.track_id?.startsWith('sim:');
+
+/**
+ * Incidents that are repeats of one another for an operator: same rule, same room, same source
+ * (live cameras vs simulator) and both still active or both closed. The WiseNET lab raises dozens
+ * of "Unauthorized entry" incidents in minutes; grouping lets one decision cover the burst.
+ */
+export const groupKey = (i: Incident) =>
+  `${i.incident_type}|${i.zone_id ?? '-'}|${isSimulated(i) ? 'sim' : 'live'}|${ACTIVE.includes(i.status) ? 'active' : 'closed'}`;

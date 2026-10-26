@@ -444,13 +444,36 @@ class TwinStore:
     # -------------------------------------------------------------------------
     def insert_incident(self, incident: Incident) -> None:
         """Insert or replace a security incident record (time fields normalised to canonical UTC)."""
-        incident.start_time = canonical_utc(incident.start_time)
-        incident.created_at = canonical_utc(incident.created_at)
-        incident.updated_at = canonical_utc(incident.updated_at)
-        if incident.end_time:
-            incident.end_time = canonical_utc(incident.end_time)
+        self.insert_incidents([incident])
+
+    def insert_incidents(self, incidents: List[Incident]) -> None:
+        """Insert or replace several incidents in one transaction (one commit, however many rows)."""
+        rows = []
+        for incident in incidents:
+            incident.start_time = canonical_utc(incident.start_time)
+            incident.created_at = canonical_utc(incident.created_at)
+            incident.updated_at = canonical_utc(incident.updated_at)
+            if incident.end_time:
+                incident.end_time = canonical_utc(incident.end_time)
+            rows.append((
+                incident.incident_id,
+                incident.incident_type,
+                incident.severity,
+                incident.status,
+                incident.zone_id,
+                incident.track_id,
+                incident.person_id,
+                incident.start_time,
+                incident.end_time,
+                incident.supporting_event_ids_json,
+                incident.summary,
+                incident.created_at,
+                incident.updated_at,
+            ))
+        if not rows:
+            return
         with self._lock, self.get_connection() as conn:
-            conn.execute(
+            conn.executemany(
                 """
                 INSERT OR REPLACE INTO incidents (
                     incident_id, incident_type, severity, status, zone_id,
@@ -458,21 +481,7 @@ class TwinStore:
                     supporting_event_ids_json, summary, created_at, updated_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
                 """,
-                (
-                    incident.incident_id,
-                    incident.incident_type,
-                    incident.severity,
-                    incident.status,
-                    incident.zone_id,
-                    incident.track_id,
-                    incident.person_id,
-                    incident.start_time,
-                    incident.end_time,
-                    incident.supporting_event_ids_json,
-                    incident.summary,
-                    incident.created_at,
-                    incident.updated_at,
-                ),
+                rows,
             )
             conn.commit()
 
@@ -506,6 +515,19 @@ class TwinStore:
             if not row:
                 return None
             return self._row_to_incident(row)
+
+    def get_incidents_by_ids(self, incident_ids: List[str]) -> Dict[str, Incident]:
+        """Fetch several incidents in one query; unknown IDs are simply absent from the result."""
+        found: Dict[str, Incident] = {}
+        ids = list(dict.fromkeys(incident_ids))
+        with self.get_connection() as conn:
+            for start in range(0, len(ids), 500):     # stay under SQLite's bound-parameter limit
+                chunk = ids[start:start + 500]
+                cur = conn.execute(
+                    f"SELECT * FROM incidents WHERE incident_id IN ({','.join('?' * len(chunk))});", chunk)
+                for row in cur.fetchall():
+                    found[row["incident_id"]] = self._row_to_incident(row)
+        return found
 
     def get_incidents(
         self,

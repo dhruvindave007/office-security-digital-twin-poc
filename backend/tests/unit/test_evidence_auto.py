@@ -138,3 +138,23 @@ def test_auto_waits_for_evidence_before_investigating():
     _drain(auto, 1)
     assert order == [("evidence", "1"), ("investigate", "1")]
     auto.close()
+
+
+def test_clip_timeline_is_real_time_when_the_camera_runs_slow(tmp_path):
+    """At 2.5 frames/s (camera under load) the video must still last as long as the capture and the
+    incident must sit at its real offset: video time == wall-clock time."""
+    import cv2
+    rec = EvidenceRecorder(str(tmp_path), pre_seconds=6, post_seconds=4, camera_for_incident=lambda i: ["cam_3"])
+    _feed(rec, "cam_3", 0, 10, fps=2.5)
+    rec.on_incidents([_inc("slow", 10)], [])
+    _feed(rec, "cam_3", 10, 16, fps=2.5)
+    assert _wait(lambda: rec.clips_written == 1)
+    c = rec.manifest("slow")["clips"][0]
+    captured = (datetime.fromisoformat(c["clip_end"]) - datetime.fromisoformat(c["clip_start"])).total_seconds()
+    cv = cv2.VideoCapture(str(tmp_path / c["video"]))
+    duration = cv.get(cv2.CAP_PROP_FRAME_COUNT) / cv.get(cv2.CAP_PROP_FPS)
+    cv.release()
+    assert captured > 9
+    assert abs(duration - captured) <= 0.25, (duration, captured)     # was ~half: frames played at a fixed 5 fps
+    assert abs(c["incident_offset_s"] - 6.0) <= 0.45 and c["incident_offset_s"] <= duration
+    rec.close()

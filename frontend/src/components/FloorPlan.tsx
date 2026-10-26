@@ -33,7 +33,7 @@ function centroid(z: Zone): [number, number] {
   return [cx / (3 * a), cy / (3 * a)];
 }
 
-export function FloorPlan({ selected }: { selected: Incident | null }) {
+export function FloorPlan({ selected, zoneFilter = '', onZone }: { selected: Incident | null; zoneFilter?: string; onZone?: (zoneId: string) => void }) {
   const { state } = useDash();
   const now = useNow(1000);
   const [heatOn, setHeatOn] = useState(false);
@@ -101,18 +101,29 @@ export function FloorPlan({ selected }: { selected: Incident | null }) {
               const n = occ[z.zone_id] ?? 0;
               const over = z.max_occupancy != null && n > z.max_occupancy;
               const sel = selected?.zone_id === z.zone_id;
+              const filtered = zoneFilter === z.zone_id;
               const pts = z.vertices.map((v) => `${F.X(v.x)},${F.Y(v.y)}`).join(' ');
+              const name = z.name.replace(/\s*\(.*\)$/, '');
               return (
                 <polygon key={z.zone_id} points={pts} data-testid={`zone-${z.zone_id}`}
-                         fill={over ? '#ff4d4f' : '#d6dbe1'} fillOpacity={over ? 0.16 : heatOn ? 0.0 : 0.035}
-                         stroke={sel ? '#f2762e' : z.security_level >= 3 ? '#8d96a2' : '#3b4552'}
-                         strokeWidth={sel ? 0.16 : 0.07} strokeDasharray={z.security_level >= 3 && !sel ? '0.35 0.2' : undefined} />
+                         fill={over ? '#ff4d4f' : filtered ? '#4c9fe8' : '#d6dbe1'} fillOpacity={over ? 0.16 : filtered ? 0.12 : heatOn ? 0.0 : 0.035}
+                         stroke={sel ? '#f2762e' : filtered ? '#4c9fe8' : z.security_level >= 3 ? '#8d96a2' : '#3b4552'}
+                         strokeWidth={sel || filtered ? 0.16 : 0.07} strokeDasharray={z.security_level >= 3 && !sel && !filtered ? '0.35 0.2' : undefined}
+                         className={onZone ? 'cursor-pointer hover:fill-opacity-[0.1]' : undefined}
+                         {...(onZone ? {
+                           role: 'button', tabIndex: 0, 'aria-pressed': filtered,
+                           'aria-label': filtered ? `${name}: show incidents in every room` : `${name}: show only this room's incidents`,
+                           onClick: () => onZone(z.zone_id),
+                           onKeyDown: (e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onZone(z.zone_id); } },
+                         } : {})}>
+                  {onZone && <title>{filtered ? 'Click: show every room' : 'Click: show only this room in the incident queue'}</title>}
+                </polygon>
               );
             })}
             {(state.site?.doors ?? []).filter((d) => d.jambs_m && d.jambs_m.length === 2).map((d) => {
               const [[x1, y1], [x2, y2]] = d.jambs_m!;
               return (
-                <g key={d.door_id}>
+                <g key={d.door_id} pointerEvents="none">
                   <line x1={F.X(x1)} y1={F.Y(y1)} x2={F.X(x2)} y2={F.Y(y2)}
                         stroke={d.badge_required ? '#d9a514' : '#5f6873'} strokeWidth={d.badge_required ? 0.3 : 0.18} strokeLinecap="butt" />
                   {d.badge_required && (
@@ -136,7 +147,7 @@ export function FloorPlan({ selected }: { selected: Incident | null }) {
               const big = z.max_x - z.min_x > 4 && z.max_y - z.min_y > 2.5;
               const fs = big ? 0.62 : 0.42;
               return (
-                <g key={`l-${z.zone_id}`} data-testid={`zone-label-${z.zone_id}`}>
+                <g key={`l-${z.zone_id}`} data-testid={`zone-label-${z.zone_id}`} pointerEvents="none">
                   <text x={F.X(cx)} y={F.Y(cy) - fs * 0.9} fontSize={fs * 0.82} fill="#8d96a2" textAnchor="middle">
                     {z.name.replace(/\s*\(.*\)$/, '').replace(/ R\+3$/, '')}
                   </text>
@@ -164,6 +175,7 @@ export function FloorPlan({ selected }: { selected: Incident | null }) {
             <span><span className="inline-block w-2 h-2 rounded-full bg-st-inv mr-1 align-middle" />person · calibrated corridor cameras only</span>
             <span>room numbers = twin headcount estimate (undercounts dense groups)</span>
             <span>tracks are per camera; no cross-camera identity</span>
+            {onZone && <span>click a room to filter incidents</span>}
             {heatOn && <span>heatmap: stored position samples; room-level cameras place everyone at the room centre{heatErr ? ` · error: ${heatErr}` : ''}</span>}
           </div>
         </div>

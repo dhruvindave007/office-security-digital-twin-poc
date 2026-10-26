@@ -154,22 +154,34 @@ def main() -> int:
     signal.signal(signal.SIGTERM, stop)
 
     base = f"http://127.0.0.1:{args.port}"
-    print("\nstarting backend (models compile on first use: ~20 s)...")
-    deadline = time.time() + 120
-    status = None
+    print("\nstarting backend (first start compiles the models for GPU/NPU: up to ~2 min; later starts ~20 s)...")
+    t_start = time.time()
+    deadline = t_start + 300
+    status, last_progress = None, ""
     while time.time() < deadline:
         if procs[-1].poll() is not None:
             line(FAIL, f"backend exited; see {BACKEND / 'data' / 'demo_backend.log'}"); stop()
         try:
             status = json.load(get(base + "/api/live/status"))
             cams = status["cameras"]
-            if cams and all(c["state"] == "running" and c["source"]["state"] == "live" and c["frames_processed"] > 0 for c in cams):
+            ready = [c for c in cams if c["state"] == "running" and c["source"]["state"] == "live" and c["frames_processed"] > 0]
+            if cams and len(ready) == len(cams):
+                line(OK, f"all {len(cams)} cameras processing after {time.time() - t_start:.0f} s")
                 break
+            loading = sum(c["state"] == "loading_model" for c in cams)
+            progress = f"{len(ready)}/{len(cams)} cameras processing" + (f", {loading} still loading the model" if loading else "")
+            if progress != last_progress:
+                line("  ..  ", f"{time.time() - t_start:4.0f} s  {progress}")
+                last_progress = progress
         except Exception:
             pass
         time.sleep(1)
     else:
-        line(FAIL, f"cameras did not all go live within 120 s; status: {json.dumps(status)[:300] if status else 'no answer'}")
+        line(FAIL, "cameras did not all go live within 300 s:")
+        for c in (status or {}).get("cameras", []):
+            line(FAIL, f"  {c['camera_id']}: {c['state']}, stream {c['source']['state']}, {c['frames_processed']} frames"
+                       + (f", error: {c['source'].get('last_error')}" if c['source'].get('last_error') else ""))
+        line(FAIL, f"backend log: {BACKEND / 'data' / 'demo_backend.log'}")
         stop()
 
     # verify, don't assume

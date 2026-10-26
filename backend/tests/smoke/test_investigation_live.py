@@ -17,8 +17,11 @@ def test_live_tailgating_investigation_is_grounded_and_honest():
         store = app.state.twin_engine.store
         tg = next(i for i in res.incidents if store.get_incident(i).incident_type == "TAILGATING")
 
-        body = client.post(f"/api/twin/incidents/{tg}/investigate",
-                           json={"question": "Who was the second person?"}).json()
+        resp = client.post(f"/api/twin/incidents/{tg}/investigate",
+                           json={"question": "Who was the second person?"})
+        if resp.status_code == 503:   # credentials resolved at start-up but the SSO token expired since
+            pytest.skip(f"Live Bedrock skipped: {resp.json().get('detail')}")
+        body = resp.json()
         print(f"\n[LIVE INVESTIGATION] status={body['status']} cost=${body['cost_usd']} "
               f"latency={body['latency_ms']}ms verification={body['verification']}")
 

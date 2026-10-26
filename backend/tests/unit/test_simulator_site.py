@@ -22,8 +22,10 @@ def test_wisenet_scenario_runs_now_on_room_level_camera(tmp_path):
     before = datetime.now(timezone.utc)
     res = ScenarioRunner(pipe, hm).run(load_scenario(os.path.join(SITE, "scenarios", "lab_unauthorized_visitor.yaml")))
     assert res.errors == [] and res.steps_processed == 3
-    inc = eng.store.get_incident(res.incidents[0])
-    assert inc.incident_type == "UNAUTHORIZED_ENTRY" and inc.zone_id == "zone_vision_lab"
+    # Outside business hours AFTER_HOURS_BREACH is raised too, so look for the entry incident by type.
+    incs = [eng.store.get_incident(i) for i in res.incidents]
+    inc = next(i for i in incs if i.incident_type == "UNAUTHORIZED_ENTRY")
+    assert inc.zone_id == "zone_vision_lab"
     started = datetime.fromisoformat(inc.start_time.replace("Z", "+00:00"))
     assert (started - before).total_seconds() >= -1      # played at the current time ("now")
     eng.store.close()

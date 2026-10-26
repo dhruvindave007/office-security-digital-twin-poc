@@ -19,7 +19,7 @@ describe('initial load', () => {
     installApi();
     render(<App />);
     expect(screen.getByTestId('boot-loading')).toBeTruthy();
-    await screen.findByTestId('camera-cam_2');
+    await screen.findByTestId('camera-cam_2', {}, { timeout: 5000 });   // generous: CI / loaded machines boot slower
     expect(screen.getByTestId('camera-cam_3')).toBeTruthy();
     expect(screen.getByTestId('zone-zone_vision_lab')).toBeTruthy();
     expect(screen.getByTestId('count-zone_corridor').textContent).toBe('1');
@@ -117,8 +117,8 @@ describe('live push channel', () => {
 describe('camera wall', () => {
   it('a fresh frame is shown as live; a frame the server reports as old is shown as frozen', async () => {
     await boot({ 'GET /api/live/cameras/{id}/frame.jpg': (u: URL) => frame(u.pathname.includes('cam_3') ? 9000 : 150) });
-    await waitFor(() => expect(screen.getByTestId('camera-cam_2').getAttribute('data-picture')).toBe('fresh'));
-    await waitFor(() => expect(screen.getByTestId('camera-cam_3').getAttribute('data-picture')).toBe('none'));
+    await waitFor(() => expect(screen.getByTestId('camera-cam_2').getAttribute('data-picture')).toBe('fresh'), { timeout: 5000 });
+    await waitFor(() => expect(screen.getByTestId('camera-cam_3').getAttribute('data-picture')).toBe('none'), { timeout: 5000 });
     expect(within(screen.getByTestId('camera-cam_3')).getByText('Picture frozen')).toBeTruthy();
     expect(screen.getByTestId('camera-cam_2').querySelector('img')!.getAttribute('src')).toMatch(/^blob:test/);
   });
@@ -139,7 +139,7 @@ describe('incident lifecycle', () => {
     expect(server.calls.find((c) => c.method === 'PATCH')?.body).toEqual({ status: 'RESOLVED' });
     await act(async () => { release({ ...inc, status: 'RESOLVED' }); });
     await waitFor(() => expect(within(detail).getByText('Resolved')).toBeTruthy());
-    expect(within(detail).getByTestId('action-OPEN').textContent).toBe('Reopen');
+    expect(within(detail).getByRole('button', { name: 'Reopen' })).toBe(within(detail).getByTestId('action-OPEN'));
   });
 
   it('a failed change explains why, keeps the old status, and can be retried', async () => {
