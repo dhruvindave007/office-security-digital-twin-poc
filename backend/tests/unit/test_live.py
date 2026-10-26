@@ -175,3 +175,15 @@ def test_live_api_status_start_stop_frame(site_runtime):
         assert int(r.headers["X-Frame-Age-Ms"]) < 5000 and r.headers["X-Frame-Captured-At"]   # how old the picture is
         assert client.get("/api/live/cameras/nope/frame.jpg").status_code == 404
         assert client.post("/api/live/stop").json()["stopped"] == ["cam_1", "cam_2"]
+
+
+def test_camera_url_reads_password_from_environment(tmp_path, monkeypatch):
+    from src.live.config import load_live_config
+    import pytest
+    cfg = tmp_path / "live.yaml"
+    cfg.write_text('cameras:\n  - {camera_id: c1, url: "rtsp://viewer:${OVT_TEST_CAM_PW}@10.0.0.5/ch1"}\n', encoding="utf-8")
+    monkeypatch.setenv("OVT_TEST_CAM_PW", "s3cret")
+    assert load_live_config(str(cfg)).cameras[0].url == "rtsp://viewer:s3cret@10.0.0.5/ch1"
+    monkeypatch.delenv("OVT_TEST_CAM_PW")
+    with pytest.raises(ValueError, match="OVT_TEST_CAM_PW"):
+        load_live_config(str(cfg))
