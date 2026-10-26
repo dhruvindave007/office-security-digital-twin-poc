@@ -35,6 +35,15 @@ def fail(msg):
     sys.exit(1)
 
 
+def _windows_long_paths() -> bool:
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SYSTEM\CurrentControlSet\Control\FileSystem") as k:
+            return winreg.QueryValueEx(k, "LongPathsEnabled")[0] == 1
+    except OSError:
+        return False
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--vision", action="store_true", help="also install camera detection (large download)")
@@ -43,6 +52,11 @@ def main():
 
     if sys.version_info < (3, 11):
         fail(f"Python 3.11+ required (this is {sys.version.split()[0]}).")
+    if os.name == "nt" and len(str(VENV)) > 120 and not _windows_long_paths():
+        # Some installed files sit ~140 characters below .venv; past Windows' 260-character limit they
+        # cannot be opened and imports fail with confusing "circular import" errors.
+        fail(f"This folder's path is too long for Windows ({len(str(REPO))} characters). Clone the repository "
+             "to a shorter path such as C:\\ovt, or enable long paths: https://learn.microsoft.com/windows/win32/fileio/maximum-file-path-limitation")
     if not args.skip_frontend and not shutil.which("npm"):
         fail("Node.js 20+ (npm) is required to build the dashboard: https://nodejs.org  (or use --skip-frontend)")
 
