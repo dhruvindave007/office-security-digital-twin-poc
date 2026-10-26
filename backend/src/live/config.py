@@ -1,4 +1,6 @@
 """Live camera configuration (one YAML file per site, e.g. data/sites/wisenet/live.yaml)."""
+import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -35,12 +37,25 @@ class LiveConfig:
         return next((c for c in self.cameras if c.camera_id == camera_id), None)
 
 
+_ENV_REF = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
+
+
+def _expand_env(url: str, where: str) -> str:
+    """Replace ${NAME} with the environment variable NAME, so camera passwords stay out of config files."""
+    def sub(m: "re.Match[str]") -> str:
+        val = os.environ.get(m.group(1))
+        if val is None:
+            raise ValueError(f"{where}: environment variable {m.group(1)} is not set")
+        return val
+    return _ENV_REF.sub(sub, url)
+
+
 def load_live_config(path: str) -> LiveConfig:
     p = Path(path)
     raw = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
     cams = []
     for c in raw.get("cameras", []):
-        url = str(c["url"])
+        url = _expand_env(str(c["url"]), f"{path}: camera {c.get('camera_id')}")
         if "://" not in url and not Path(url).is_absolute():  # relative file paths are relative to the YAML
             url = str((p.parent / url).resolve())
         cams.append(LiveCameraConfig(**{**c, "url": url}))

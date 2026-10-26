@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <img alt="backend tests" src="https://img.shields.io/badge/backend_tests-312_passing-2ea043?style=flat-square">
+  <img alt="backend tests" src="https://img.shields.io/badge/backend_tests-313_passing-2ea043?style=flat-square">
   <img alt="frontend tests" src="https://img.shields.io/badge/dashboard_tests-33_passing-2ea043?style=flat-square">
   <img alt="python" src="https://img.shields.io/badge/python-3.11%2B-3776ab?style=flat-square">
   <img alt="node" src="https://img.shields.io/badge/node-20%2B-339933?style=flat-square">
