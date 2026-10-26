@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { api } from '../api/client';
+import type { Severity } from '../api/types';
 import { STALE_MS, useDash, useNow } from '../state/dashboard';
 import { ACTIVE, age, clock } from '../lib/format';
 import { Button, Dot } from './ui';
@@ -46,7 +47,7 @@ function Simulate() {
   );
 }
 
-export function TopBar() {
+export function TopBar({ onSeverity, minSeverity = null }: { onSeverity?: (s: Severity) => void; minSeverity?: Severity | null } = {}) {
   const { state } = useDash();
   const now = useNow(1000);
   const conn = connectionView(state.conn, state.lastMessageAt, now);
@@ -72,10 +73,14 @@ export function TopBar() {
         <span title="camera streams delivering frames"><b className={liveCams < configured ? 'text-sig-warn' : 'text-fg'}>{liveCams}/{configured}</b> cameras live</span>
         {state.live?.totals && <span title="detections per second, all cameras">{state.live.totals.processed_fps.toFixed(0)} det/s</span>}
         <span title="people currently tracked by the twin (estimate; per-camera tracks)"><b className="text-fg">{state.twin?.total_active_tracks ?? '—'}</b> tracked</span>
-        <span className="flex items-center gap-2" title="active incidents by severity">
-          <span><b className="text-sev-critical">{bySev('CRITICAL')}</b> crit</span>
-          <span><b className="text-sev-high">{bySev('HIGH')}</b> high</span>
-          <span><b className="text-sev-medium">{bySev('MEDIUM')}</b> med</span>
+        <span className="flex items-center gap-0.5" role="group" aria-label="Active incidents by severity (click to filter the queue)">
+          {([['CRITICAL', 'crit', 'text-sev-critical'], ['HIGH', 'high', 'text-sev-high'], ['MEDIUM', 'med', 'text-sev-medium']] as const).map(([s, label, color]) => (
+            <button key={s} onClick={() => onSeverity?.(s)} aria-pressed={minSeverity === s} data-testid={`sev-${s}`}
+                    title={minSeverity === s ? 'Show all severities again' : `Show only ${label}${s === 'CRITICAL' ? '' : ' and above'} in the queue`}
+                    className={`px-1.5 h-6 rounded-sm ${minSeverity === s ? 'bg-ink-600 text-fg' : 'hover:bg-ink-700'}`}>
+              <b className={color}>{bySev(s)}</b> {label}
+            </button>
+          ))}
         </span>
         <span title={auto?.enabled ? `one per incident type and room per ${Math.round((auto.cooldown_seconds ?? 0) / 60)} min, max ${auto.max_per_hour}/h` : 'automatic AI review is off'}>
           AI auto-review {auto?.enabled ? (auto.paused_seconds_left ? <b className="text-sig-warn">paused (AWS sign-in)</b> : 'on') : 'off'}

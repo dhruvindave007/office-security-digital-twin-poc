@@ -140,8 +140,24 @@ def main() -> int:
         page.wait_for_function("() => document.querySelector('[data-testid=incident-detail]').innerText.toLowerCase().includes('investigating')", timeout=10000)
         check("Start investigating -> backend INVESTIGATING", api(base, f"/api/twin/incidents/{inc['incident_id']}")["status"] == "INVESTIGATING")
         page.get_by_test_id("action-RESOLVED").click()
-        page.wait_for_selector('[data-testid="action-OPEN"]', timeout=10000)
+        page.wait_for_selector('[data-testid="toast"]', timeout=10000)
         check("Resolve -> backend RESOLVED", api(base, f"/api/twin/incidents/{inc['incident_id']}")["status"] == "RESOLVED")
+        # the detail moves on to the next active incident (or stays, showing Reopen, if none is left)
+        detail_text = page.inner_text('[data-testid="incident-detail"]')
+        moved = inc["incident_id"] not in detail_text
+        check("after Resolve the detail shows the next incident (or Reopen if none left)",
+              moved or page.locator('[data-testid="action-OPEN"]').count() == 1, "moved on" if moved else "stayed: none left")
+        page.keyboard.press("u")
+        ok = False
+        for _ in range(20):
+            ok = api(base, f"/api/twin/incidents/{inc['incident_id']}")["status"] == "INVESTIGATING"
+            if ok:
+                break
+            time.sleep(0.5)
+        check("Undo (u) -> backend back to INVESTIGATING", ok)
+        req = urllib.request.Request(base + f"/api/twin/incidents/{inc['incident_id']}", method="PATCH",
+                                     data=json.dumps({"status": "RESOLVED"}).encode(), headers={"Content-Type": "application/json"})
+        urllib.request.urlopen(req, timeout=10).read()     # leave the simulated incident closed
         page.keyboard.press("Escape")
         check("Esc returns to the queue", page.locator('[aria-label="Incident queue"]').count() == 1)
         check("no JavaScript errors", not errors, "; ".join(errors[:3]))

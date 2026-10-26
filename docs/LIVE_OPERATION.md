@@ -10,7 +10,14 @@ CC BY-NC-SA 4.0: internal use only.
     backend\.venv\Scripts\python.exe scripts\demo.py --fresh --rtsp   # cameras over RTSP, like IP cameras
 
 `READY` is printed only after it has verified: API health, every camera live and processing, a camera
-picture, and the push channel delivering twin state.
+picture, and the push channel delivering twin state. While it waits it prints how many cameras are
+processing; it gives up after 300 s and then lists each camera's state.
+
+**Start-up time.** Most of it is the six detection models being compiled for the GPU and NPU. Compiled
+models are cached in `backend/data/models/ov_cache` (OpenVINO `CACHE_DIR`; rebuilt by itself when the
+model or driver changes). Measured 2026-10-21 in isolation: NPU compile 34 s -> 3 s, GPU 16 s -> 5 s once
+cached. The whole start-up still took 89-119 s that day because the laptop was on battery with other heavy
+applications open; the earlier 120 s limit was too tight for that, which is why the first start failed.
 
 Then open the operator dashboard at http://127.0.0.1:8000/ (see `docs/DASHBOARD.md`).
 
@@ -26,7 +33,7 @@ Then open the operator dashboard at http://127.0.0.1:8000/ (see `docs/DASHBOARD.
 | Camera worker | `backend/src/live/worker.py` | Processes `process_fps` frames/s; if it falls behind it skips slots (counted) instead of queueing, so delay cannot grow. Warms the model up before going live. |
 | Floor position | `backend/src/live/projector.py` | Calibrated cameras (cam_1, cam_2): measured floor position. Other cameras: room level (person placed at the room centre). |
 | Badge door gate | `backend/src/live/entry_gate.py` | An entry counts only if the person's first box is at the door and they are tracked >= 5 times; decided at the 5 s late-badge deadline using only what was seen so far. |
-| Evidence | `backend/src/live/evidence.py` | 12 s before + 8 s after each HIGH/CRITICAL incident, H.264 + key frame; bursts share one clip; disk quota. |
+| Evidence | `backend/src/live/evidence.py` | 12 s before + 8 s after each HIGH/CRITICAL incident, H.264 + key frame; bursts share one clip; disk quota. The video is laid out in real time (10 fps timeline, the newest real frame held through gaps), so a camera running slow does not make the clip play fast and "jump to incident" lands on the right moment. |
 | Auto AI review | `backend/src/ai/investigation/auto.py` | One per (incident type, room) per 10 min, max 12/hour, $1/day budget, waits for the clip, pauses if AWS sign-in expired. |
 | Push channel | `backend/src/api/routes_stream.py` | `GET /api/stream` (SSE): incidents as raised, twin state every 1 s, camera health every 2 s. |
 

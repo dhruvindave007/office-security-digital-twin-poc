@@ -120,3 +120,13 @@ class IncidentPatchRequest(BaseModel):
             raise ValueError(f"Invalid status '{v}'. Allowed: {', '.join(sorted(allowed))}")
         return v
 
+
+class IncidentBulkStatusRequest(IncidentPatchRequest):
+    """Set the same status on several incidents at once (e.g. a burst of repeats)."""
+    incident_ids: List[str] = Field(..., min_length=1, max_length=500)
+
+
+class IncidentBulkStatusResponse(BaseModel):
+    updated: List[IncidentResponse]
+    not_found: List[str]
+

@@ -37,6 +37,8 @@ export const api = {
   incident: (id: string) => request<Incident>(`/api/twin/incidents/${encodeURIComponent(id)}`),
   setStatus: (id: string, status: IncidentStatus) =>
     request<Incident>(`/api/twin/incidents/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+  setStatusBulk: (ids: string[], status: IncidentStatus) =>
+    request<{ updated: Incident[]; not_found: string[] }>('/api/twin/incidents/status', { method: 'POST', body: JSON.stringify({ incident_ids: ids, status }) }),
   events: (ids: string[]) =>
     ids.length === 0
       ? Promise.resolve({ total: 0, events: [] as TwinEvent[] })

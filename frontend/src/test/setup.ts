@@ -45,4 +45,5 @@ HTMLMediaElement.prototype.pause = vi.fn();
 afterEach(() => {
   cleanup();
   FakeEventSource.instances = [];
+  try { window.localStorage.clear(); } catch { /* storage unavailable */ }
 });

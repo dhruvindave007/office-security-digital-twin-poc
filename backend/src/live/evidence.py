@@ -24,6 +24,7 @@ from typing import Any, Callable, Deque, Dict, List, Optional, Tuple
 
 logger = logging.getLogger("office_vision.live.evidence")
 SEVERITY_RANK = {"LOW": 0, "MEDIUM": 1, "HIGH": 2, "CRITICAL": 3}
+VIDEO_FPS = 10.0      # evidence video timeline rate (frames are held between real captures)
 _COLORS = [(66, 135, 245), (12, 83, 201), (82, 196, 103), (18, 156, 226), (180, 90, 200), (60, 60, 230), (200, 170, 40)]
 
 
@@ -179,24 +180,34 @@ class EvidenceRecorder:
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
             imgs.append(img)
         h, w = imgs[0].shape[:2]
+        # Real time, not frame count: cameras deliver uneven frame rates (fewer under load), so the video
+        # is laid out on a fixed VIDEO_FPS wall-clock timeline, each tick showing the newest real frame
+        # (held through gaps, never invented). Video time then equals capture time to within 1/VIDEO_FPS,
+        # so incident_offset_s seeks to the right moment.
+        t0 = cap.frames[0].t
+        span = (cap.frames[-1].t - t0).total_seconds()
+        timeline, j = [], 0
+        for k in range(int(round(span * VIDEO_FPS)) + 1):
+            while j + 1 < len(cap.frames) and (cap.frames[j + 1].t - t0).total_seconds() <= k / VIDEO_FPS + 1e-6:
+                j += 1
+            timeline.append(j)
         video = clips / f"{stem}.mp4"
         if shutil.which("ffmpeg"):
             p = subprocess.Popen(["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "bgr24",
-                                  "-s", f"{w}x{h}", "-r", str(self.fps), "-i", "-", "-c:v", "libx264", "-preset", "veryfast",
+                                  "-s", f"{w}x{h}", "-r", str(VIDEO_FPS), "-i", "-", "-c:v", "libx264", "-preset", "veryfast",
                                   "-crf", "26", "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(video)],
                                  stdin=subprocess.PIPE)
-            for img in imgs:
-                p.stdin.write(cv2.resize(img, (w, h)).tobytes())
+            for i in timeline:
+                p.stdin.write(cv2.resize(imgs[i], (w, h)).tobytes())
             p.stdin.close()
             if p.wait(120) != 0:
                 raise RuntimeError("ffmpeg failed to encode evidence clip")
         else:  # no ffmpeg: Motion-JPEG AVI (bigger, but plays everywhere)
             video = clips / f"{stem}.avi"
-            wr = cv2.VideoWriter(str(video), cv2.VideoWriter_fourcc(*"MJPG"), self.fps, (w, h))
-            for img in imgs:
-                wr.write(cv2.resize(img, (w, h)))
+            wr = cv2.VideoWriter(str(video), cv2.VideoWriter_fourcc(*"MJPG"), VIDEO_FPS, (w, h))
+            for i in timeline:
+                wr.write(cv2.resize(imgs[i], (w, h)))
             wr.release()
-        t0 = cap.frames[0].t
         for iid, meta in cap.incidents.items():
             it = _parse(meta["time"])
             k = min(range(len(cap.frames)), key=lambda i: abs((cap.frames[i].t - it).total_seconds()))
@@ -204,7 +215,7 @@ class EvidenceRecorder:
             cv2.imwrite(str(key), imgs[k], [cv2.IMWRITE_JPEG_QUALITY, 85])
             path = incs / f"{iid}.json"
             entry = {"camera_id": cap.camera_id, "video": f"clips/{video.name}", "key_frame": f"clips/{key.name}",
-                     "clip_start": t0.isoformat(), "clip_end": cap.frames[-1].t.isoformat(), "frames": len(imgs),
+                     "clip_start": t0.isoformat(), "clip_end": cap.frames[-1].t.isoformat(), "frames": len(imgs), "video_fps": VIDEO_FPS,
                      "incident_offset_s": round((it - t0).total_seconds(), 2), "track": meta["track"]}
             doc = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {"incident_id": iid, "clips": []}
             doc["clips"] = [c for c in doc["clips"] if c["video"] != entry["video"]] + [entry]

@@ -21,6 +21,8 @@ try:
     from src.twin.schemas import (
         EventResponse,
         EventsListResponse,
+        IncidentBulkStatusRequest,
+        IncidentBulkStatusResponse,
         IncidentPatchRequest,
         IncidentResponse,
         IncidentsListResponse,
@@ -35,6 +37,8 @@ except ImportError:
     from twin.schemas import (
         EventResponse,
         EventsListResponse,
+        IncidentBulkStatusRequest,
+        IncidentBulkStatusResponse,
         IncidentPatchRequest,
         IncidentResponse,
         IncidentsListResponse,
@@ -279,6 +283,36 @@ async def get_incident(request: Request, incident_id: str):
     return _row_to_incident_response(inc)
 
 
+def _set_status(request: Request, engine: DigitalTwinEngine, incidents: List[Incident], status: str) -> List[IncidentResponse]:
+    """Apply an operator status change (caller holds TWIN_WRITE_LOCK), stored in one transaction,
+    and push each changed incident to every open dashboard."""
+    now_iso = datetime.now(timezone.utc).isoformat()
+    for inc in incidents:
+        inc.updated_at = now_iso
+        if status in ("RESOLVED", "FALSE_POSITIVE"):
+            if inc.end_time is None:
+                inc.end_time = now_iso
+        else:
+            inc.end_time = None  # re-opened: it has not ended
+        inc.status = status
+
+    engine.store.insert_incidents(incidents)
+
+    # Keep the rule engine's dedupe copy identical to what was just stored; otherwise the
+    # next piece of evidence overwrites this status with the engine's stale OPEN copy.
+    rule_engine = getattr(request.app.state, "rule_engine", None)
+    broadcaster = getattr(request.app.state, "broadcaster", None)
+    views = []
+    for inc in incidents:
+        if rule_engine:
+            rule_engine.sync_incident(inc)
+        view = _row_to_incident_response(inc)
+        if broadcaster is not None:
+            broadcaster.publish("incident", view.model_dump())
+        views.append(view)
+    return views
+
+
 @router.patch("/incidents/{incident_id}", response_model=IncidentResponse)
 async def patch_incident(
     request: Request,
@@ -294,25 +328,18 @@ async def patch_incident(
                 status_code=404,
                 detail=f"Incident {incident_id} not found",
             )
+        return _set_status(request, engine, [inc], body.status)[0]
 
-        now_iso = datetime.now(timezone.utc).isoformat()
-        inc.updated_at = now_iso
-        if body.status in ("RESOLVED", "FALSE_POSITIVE"):
-            if inc.end_time is None:
-                inc.end_time = now_iso
-        else:
-            inc.end_time = None  # re-opened: it has not ended
-        inc.status = body.status
 
-        engine.store.insert_incident(inc)
-
-        # Keep the rule engine's dedupe copy identical to what was just stored; otherwise the
-        # next piece of evidence overwrites this status with the engine's stale OPEN copy.
-        rule_engine = getattr(request.app.state, "rule_engine", None)
-        if rule_engine:
-            rule_engine.sync_incident(inc)
-
-        return _row_to_incident_response(inc)
+@router.post("/incidents/status", response_model=IncidentBulkStatusResponse)
+async def bulk_set_status(request: Request, body: IncidentBulkStatusRequest):
+    """Set one status on up to 500 incidents (e.g. resolve a burst of repeats). Unknown IDs are reported, not fatal."""
+    ids = list(dict.fromkeys(body.incident_ids))   # de-duplicated, order kept
+    with TWIN_WRITE_LOCK:
+        engine = _get_engine(request)
+        found = engine.store.get_incidents_by_ids(ids)
+        updated = _set_status(request, engine, [found[i] for i in ids if i in found], body.status)
+    return IncidentBulkStatusResponse(updated=updated, not_found=[i for i in ids if i not in found])
 
 
 @router.get("/tracks/{track_id}/path")

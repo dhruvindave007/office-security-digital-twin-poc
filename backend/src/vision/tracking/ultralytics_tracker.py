@@ -1,3 +1,4 @@
+import threading
 from pathlib import Path
 from typing import Any, List
 
@@ -9,6 +10,33 @@ except ImportError:
     from core.paths import _resolve_data_path
     from vision.geometry import BoundingBox2D
     from vision.tracking.base import PersonTracker, TrackedDetection
+
+
+_OV_CACHE_LOCK = threading.Lock()
+
+
+def _enable_openvino_cache(cache_dir: Path) -> None:
+    """Make every OpenVINO Core (Ultralytics creates its own) keep compiled models in cache_dir.
+
+    Compiling for the GPU/NPU is the slow part of start-up (measured: NPU 34 s -> 3 s, GPU 16 s -> 5 s
+    once cached). The cache is keyed by model, device and driver, so a changed model recompiles by itself.
+    """
+    import openvino as ov
+    with _OV_CACHE_LOCK:   # camera workers load their models in parallel threads
+        if getattr(ov.Core, "_ovt_cache_dir", None):
+            return
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        original_init = ov.Core.__init__
+
+        def __init__(self, *args, **kwargs):
+            original_init(self, *args, **kwargs)
+            try:
+                self.set_property({"CACHE_DIR": str(cache_dir)})
+            except Exception:   # a device without cache support still works, just compiles every time
+                pass
+
+        ov.Core.__init__ = __init__
+        ov.Core._ovt_cache_dir = str(cache_dir)
 
 
 class UltralyticsPersonTracker(PersonTracker):
@@ -45,6 +73,8 @@ class UltralyticsPersonTracker(PersonTracker):
         except ImportError as e:
             raise RuntimeError("Vision extra not installed: uv pip install -e .[vision]") from e
 
+        if str(self.device).startswith("intel"):
+            _enable_openvino_cache(Path(self.weights_path).parent / "ov_cache")
         self._model = YOLO(self.weights_path)
         # Exported models (OpenVINO) have a fixed input shape, e.g. 480x640 for 4:3 cameras (25% less
         # work than padding to 640x640). Run inference at that shape; .pt models keep Ultralytics' default.
