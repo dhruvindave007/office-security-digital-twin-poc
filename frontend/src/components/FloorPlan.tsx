@@ -75,7 +75,7 @@ export function FloorPlan({ selected, zoneFilter = '', onZone }: { selected: Inc
   return (
     <section className="flex flex-col min-h-0 h-full bg-ink-900 border-t border-ink-700" aria-label="Floor plan">
       <SectionHead
-        title="Floor plan · R+3"
+        title="Floor plan"
         right={<>
           <span className={`tnum ${stale ? 'text-sig-warn' : ''}`} title="time since the last twin update">
             {stale ? 'STALE · ' : ''}twin {twinAge === null ? '—' : `${age(state.twinAt!, now)} ago`}

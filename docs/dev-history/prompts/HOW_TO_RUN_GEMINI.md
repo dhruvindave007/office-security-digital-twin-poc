@@ -9,7 +9,7 @@ Milestone order: `M3_RULES_SIMULATOR_PROMPT.md` → (review) → `M3B_FUSION_PRO
 ## 0. One-time setup (you, not Gemini)
 
 ```powershell
-cd "C:\Users\DhruvinDave(DataAI)\office-security-digital-twin-poc"
+cd "C:\path\to\office-security-digital-twin-poc"
 git init
 git add -A
 git commit -m "Baseline before M3"

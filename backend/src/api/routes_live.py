@@ -8,6 +8,15 @@ from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/api/live", tags=["Live Cameras"])
 
+MAX_MJPEG_STREAMS = 8                      # each stream costs a JPEG encode per frame
+_mjpeg_slots = asyncio.Semaphore(MAX_MJPEG_STREAMS)
+_WIDTHS = (320, 480, 640, 960, 1280, 1920)
+
+
+def _snap_width(width: int) -> int:
+    """A few fixed sizes, so varying `width` cannot defeat the per-frame JPEG cache."""
+    return min(_WIDTHS, key=lambda w: abs(w - width))
+
 
 class StartRequest(BaseModel):
     config_path: Optional[str] = Field(default=None, description="Live camera YAML; default LIVE_CONFIG_PATH.")
@@ -28,12 +37,16 @@ def live_status(request: Request) -> Dict[str, Any]:
 @router.post("/start")
 def live_start(request: Request, body: StartRequest = StartRequest()) -> Dict[str, Any]:
     mgr = _manager(request)
+    # The camera list is server configuration (LIVE_CONFIG_PATH), never a client-chosen path: a client
+    # path would let a caller make the server open any file or stream URL (SSRF / file probing).
+    if body.config_path:
+        raise HTTPException(status_code=400, detail="config_path is not accepted over the API; set LIVE_CONFIG_PATH on the server.")
     try:
-        return mgr.start(body.config_path)
+        return mgr.start(None)
     except RuntimeError as e:
         raise HTTPException(status_code=409, detail=str(e))
-    except (ValueError, FileNotFoundError) as e:
-        raise HTTPException(status_code=422, detail=str(e))
+    except (ValueError, FileNotFoundError, OSError):
+        raise HTTPException(status_code=422, detail="The server's live camera configuration could not be loaded; see the server log.")
 
 
 @router.post("/stop")
@@ -46,7 +59,7 @@ def live_frame(camera_id: str, request: Request, annotated: bool = True, width: 
     mgr = _manager(request)
     if camera_id not in mgr.workers:
         raise HTTPException(status_code=404, detail=f"Camera {camera_id} is not running")
-    data = mgr.jpeg(camera_id, annotated=annotated, max_width=max(160, min(width, 1920)))
+    data = mgr.jpeg(camera_id, annotated=annotated, max_width=_snap_width(width))
     if data is None:
         raise HTTPException(status_code=503, detail=f"No picture from {camera_id} yet")
     # The last picture is served even when the stream has stopped delivering: say how old it is, so a
@@ -66,18 +79,21 @@ async def live_mjpeg(camera_id: str, request: Request, annotated: bool = True, w
     mgr = _manager(request)
     if camera_id not in mgr.workers:
         raise HTTPException(status_code=404, detail=f"Camera {camera_id} is not running")
-    width = max(160, min(width, 1920))
+    if _mjpeg_slots.locked():
+        raise HTTPException(status_code=429, detail=f"Too many open camera streams (max {MAX_MJPEG_STREAMS}).")
+    width = _snap_width(width)
     period = 1.0 / max(0.5, min(fps, 15.0))
 
     async def frames():
-        last = None
-        while camera_id in mgr.workers and not await request.is_disconnected():
-            data = await asyncio.to_thread(mgr.jpeg, camera_id, annotated, 75, width)
-            if data is not None and data is not last:
-                last = data
-                yield (b"--frame\r\nContent-Type: image/jpeg\r\nContent-Length: "
-                       + str(len(data)).encode() + b"\r\n\r\n" + data + b"\r\n")
-            await asyncio.sleep(period)
+        async with _mjpeg_slots:
+            last = None
+            while camera_id in mgr.workers and not await request.is_disconnected():
+                data = await asyncio.to_thread(mgr.jpeg, camera_id, annotated, 75, width)
+                if data is not None and data is not last:
+                    last = data
+                    yield (b"--frame\r\nContent-Type: image/jpeg\r\nContent-Length: "
+                           + str(len(data)).encode() + b"\r\n\r\n" + data + b"\r\n")
+                await asyncio.sleep(period)
 
     return StreamingResponse(frames(), media_type="multipart/x-mixed-replace; boundary=frame",
                              headers={"Cache-Control": "no-store"})

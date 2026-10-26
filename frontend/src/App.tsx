@@ -4,6 +4,7 @@ import { CameraWall } from './components/CameraWall';
 import { FloorPlan } from './components/FloorPlan';
 import { IncidentDetail } from './components/IncidentDetail';
 import { DEFAULT_FILTER, IncidentQueue, filterIncidents, type QueueFilter } from './components/IncidentQueue';
+import { AuthGate } from './components/SignIn';
 import { TopBar } from './components/TopBar';
 import { Button } from './components/ui';
 import { ACTIVE, SEVERITY_RANK, incidentCameras } from './lib/format';
@@ -155,10 +156,12 @@ function Dashboard() {
 
 export default function App() {
   return (
-    <DashboardProvider>
-      <OpsProvider>
-        <Dashboard />
-      </OpsProvider>
-    </DashboardProvider>
+    <AuthGate>
+      <DashboardProvider>
+        <OpsProvider>
+          <Dashboard />
+        </OpsProvider>
+      </DashboardProvider>
+    </AuthGate>
   );
 }
