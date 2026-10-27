@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """Deterministic evidence packet for an incident investigation (no AI here).
 
 The packet is the ONLY thing the model sees, so it must be complete enough to explain the

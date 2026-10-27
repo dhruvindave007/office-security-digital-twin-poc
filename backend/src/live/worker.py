@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """One worker per camera: newest frame -> detect + track -> floor position -> twin -> rules.
 
 Timing model: the worker wakes `process_fps` times a second and takes the newest frame (older frames

@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """Demo helper: replays badge swipes in step with a looping recorded video.
 
 Recordings have no badge reader, so the demo plays scripted swipes at fixed offsets after each loop

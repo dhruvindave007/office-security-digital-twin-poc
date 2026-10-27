@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """Scenarios on a real site whose cameras have no pixel homography (WiseNET room-level cameras)."""
 import os
 from datetime import datetime, timezone

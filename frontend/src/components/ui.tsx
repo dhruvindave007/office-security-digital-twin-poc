@@ -1,3 +1,5 @@
+// Copyright (c) 2026 Dhruvin Dave
+// SPDX-License-Identifier: AGPL-3.0-only
 import React from 'react';
 import type { IncidentStatus, Severity } from '../api/types';
 import { STATUS_LABEL } from '../lib/format';

@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """Pure MOT-style evaluation helpers (numpy only, no I/O).
 
 Boxes are (x1, y1, x2, y2) in pixels. Matching is greedy on IoU, highest first, which is a

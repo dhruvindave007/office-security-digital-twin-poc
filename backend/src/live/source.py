@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """A camera stream reader that always holds the NEWEST frame.
 
 Live video must never queue: if detection is slower than the camera, old frames are dropped and

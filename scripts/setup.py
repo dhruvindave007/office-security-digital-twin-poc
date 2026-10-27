@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """One-time setup on Windows, macOS or Linux. Needs only Python 3.11+ and Node.js 20+ on PATH.
 
     python scripts/setup.py              # core system: twin, rules, simulator, dashboard, AI investigation

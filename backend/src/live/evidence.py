@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """Rolling evidence recording: every camera keeps its last few seconds of processed frames in memory;
 when a serious incident is raised, the frames before it (pre-roll) and after it (post-roll) are
 saved as an H.264 clip plus key frames.

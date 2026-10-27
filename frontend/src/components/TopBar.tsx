@@ -1,3 +1,5 @@
+// Copyright (c) 2026 Dhruvin Dave
+// SPDX-License-Identifier: AGPL-3.0-only
 import { useState } from 'react';
 import { api } from '../api/client';
 import type { Severity } from '../api/types';

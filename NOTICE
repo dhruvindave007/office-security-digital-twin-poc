@@ -1,0 +1,19 @@
+Office Vision Twin
+Copyright (c) 2026 Dhruvin Dave (https://github.com/dhruvindave007)
+
+This program is free software: you can redistribute it and/or modify it under the terms of the
+GNU Affero General Public License version 3 as published by the Free Software Foundation
+(see LICENSE). It is distributed WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+If you run a modified version of this program for users over a network, the AGPL requires you to
+offer those users the complete corresponding source code of your version.
+
+Commercial licences (use without the AGPL's source-sharing obligations) are available from the
+copyright holder. Contact via https://github.com/dhruvindave007.
+
+You must keep this NOTICE, the LICENSE, and the copyright and SPDX lines in every source file in
+all copies and derivative works. "Office Vision Twin" is the author's project name; do not use it
+to name or promote a derived product without written permission.
+
+Third-party components are listed in THIRD_PARTY_NOTICES.md and remain under their own licences.

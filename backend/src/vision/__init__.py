@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """Vision Geometry Foundation package for Office Vision Intelligence Platform.
 
 Provides deterministic planar homography transformations, camera adjacency topology,

@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """AI package for Office Vision Intelligence Platform.
 
 Provides integration with Amazon Bedrock Runtime via the Converse API,

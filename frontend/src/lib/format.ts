@@ -1,3 +1,5 @@
+// Copyright (c) 2026 Dhruvin Dave
+// SPDX-License-Identifier: AGPL-3.0-only
 import type { Incident, IncidentStatus, Severity, Site, Zone } from '../api/types';
 
 export const SEVERITY_RANK: Record<Severity, number> = { CRITICAL: 3, HIGH: 2, MEDIUM: 1, LOW: 0 };

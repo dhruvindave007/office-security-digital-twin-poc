@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """Starts/stops all live cameras of a site and serves their status and annotated pictures."""
 import logging
 import threading

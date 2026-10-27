@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """WiseNET real-building validation: run all cameras of a recording set through the tracker,
 feed the twin, and score its per-room headcount against the dataset's ground truth.
 

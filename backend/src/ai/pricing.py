@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """On-demand Bedrock token prices used to record the cost of every AI call.
 
 Source: AWS public Price List files (AmazonBedrock / AmazonBedrockFoundationModels offers,

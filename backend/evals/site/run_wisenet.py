@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """Validate the twin on the real WiseNET building (all recording sets) against its ground truth.
 
 From backend/:  .\.venv\Scripts\python.exe -m evals.site.run_wisenet [--sets 1,2,...]

@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """Synchronised multi-camera video wall + live floor plan for a WiseNET recording set.
 
 Top: every camera of the set in a grid (boxes + track numbers). Bottom: the floor plan with each

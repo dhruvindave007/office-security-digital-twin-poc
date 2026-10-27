@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """Publish recorded camera videos as LIVE RTSP cameras (the same protocol real IP cameras use).
 
 Starts a local MediaMTX RTSP server and one ffmpeg per video, each looping at real speed:

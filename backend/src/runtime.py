@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """Shared assembly of the Digital Twin runtime (twin, rules, vision pipeline, access, clips).
 
 Used by both the FastAPI lifespan (main.py) and the vision CLI (vision/cli.py) so the two can

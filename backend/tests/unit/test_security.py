@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """Access control and HTTP hardening (src/api/security.py) plus the fixes from the security review."""
 import pytest
 from fastapi.testclient import TestClient

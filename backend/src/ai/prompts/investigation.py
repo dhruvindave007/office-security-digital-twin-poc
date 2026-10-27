@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """Prompt template for incident investigation (kept separate from client/service logic)."""
 
 PROMPT_VERSION = "investigation-v2"

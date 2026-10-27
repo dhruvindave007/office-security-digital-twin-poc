@@ -1,3 +1,5 @@
+// Copyright (c) 2026 Dhruvin Dave
+// SPDX-License-Identifier: AGPL-3.0-only
 // Routed fetch for tests only. Responses follow the backend's real response shapes.
 import { vi } from 'vitest';
 import type { Incident, InvestigationList, LiveStatus, Site, TwinState, Zone } from '../api/types';

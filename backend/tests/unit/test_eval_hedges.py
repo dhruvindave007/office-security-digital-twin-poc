@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """The eval's uncertainty detector (it once contained literal backspace characters and never matched)."""
 import sys
 from pathlib import Path

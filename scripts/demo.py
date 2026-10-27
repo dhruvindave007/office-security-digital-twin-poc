@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """One command to run the whole system as the WiseNET building with live cameras.
 
     backend\\.venv\\Scripts\\python.exe scripts\\demo.py            # 6 cameras replayed live from files

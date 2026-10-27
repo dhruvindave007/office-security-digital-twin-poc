@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """AWS IAM Identity Center (SSO) browser sign-in without the AWS CLI (no admin rights needed).
 
 Usage (from backend/, Windows shown; use `export` on macOS/Linux):

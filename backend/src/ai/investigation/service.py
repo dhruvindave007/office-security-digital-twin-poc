@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """Incident investigation: evidence -> Bedrock (Converse) -> verified, audited result.
 
 Bedrock never touches the real-time path: this runs on demand for one incident. The model's

@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """Live camera pipeline with fake streams and a fake detector: newest-frame semantics, reconnect,
 twin feed with wall-clock times, exits on stop, entry-gate wiring, API, and credential redaction."""
 import os

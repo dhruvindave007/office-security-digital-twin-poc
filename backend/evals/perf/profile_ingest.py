@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """Measure the twin's per-frame cost on real WiseNET detections (no video decode / inference).
 
 Replays cached YOLO detections of one set through ingest -> rules -> prune, exactly as live mode

@@ -1,3 +1,5 @@
+// Copyright (c) 2026 Dhruvin Dave
+// SPDX-License-Identifier: AGPL-3.0-only
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { ApiError, UNAUTHORIZED_EVENT, auth } from '../api/client';
 import { Button } from './ui';
