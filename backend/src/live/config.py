@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """Live camera configuration (one YAML file per site, e.g. data/sites/wisenet/live.yaml)."""
 import os
 import re

@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 from dataclasses import FrozenInstanceError
 import math
 from typing import List, Tuple

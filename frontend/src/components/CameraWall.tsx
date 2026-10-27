@@ -1,3 +1,5 @@
+// Copyright (c) 2026 Dhruvin Dave
+// SPDX-License-Identifier: AGPL-3.0-only
 import { useEffect, useState } from 'react';
 import { frameUrl } from '../api/client';
 import type { LiveCamera, SiteCamera } from '../api/types';

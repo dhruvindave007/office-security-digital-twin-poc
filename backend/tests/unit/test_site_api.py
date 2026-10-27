@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """GET /api/site and the event_ids filter used by the dashboard."""
 from fastapi.testclient import TestClient
 

@@ -1,3 +1,5 @@
+// Copyright (c) 2026 Dhruvin Dave
+// SPDX-License-Identifier: AGPL-3.0-only
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Incident, IncidentStatus } from '../api/types';
 import { useDash, useNow } from '../state/dashboard';

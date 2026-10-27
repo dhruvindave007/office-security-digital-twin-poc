@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """End-to-end check of the operator dashboard against a RUNNING system (start it with scripts/demo.py).
 
 Drives a real browser (Playwright with the installed Microsoft Edge; dev-only:

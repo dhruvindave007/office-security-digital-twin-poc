@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """Evidence clips around incidents (pre/post-roll, shared bursts, quota) and the auto-investigator
 (severity filter, duplicate cooldown, hourly cap, AWS sign-in pause, waits for evidence)."""
 from datetime import datetime, timedelta, timezone

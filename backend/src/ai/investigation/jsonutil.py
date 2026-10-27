@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """Parse a JSON object out of a model reply (tolerates a markdown fence or stray prose)."""
 import json
 import re

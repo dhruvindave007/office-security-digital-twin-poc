@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 class BedrockError(Exception):
     """Base exception for all Amazon Bedrock client errors."""
     pass

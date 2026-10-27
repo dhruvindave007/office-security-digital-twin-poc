@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """Read-only description of the running site for the operator dashboard: GET /api/site
 
 Everything comes from the files the backend already runs on (twin camera table, access-control

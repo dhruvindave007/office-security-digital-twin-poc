@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """Digital Twin Core package for Office Vision Intelligence Platform.
 
 Provides deterministic spatial entity tracking, append-only SQLite event ledger,

@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """Server-Sent Events push channel for the dashboard: GET /api/stream
 
 One long-lived HTTP response per browser tab (EventSource). Messages:

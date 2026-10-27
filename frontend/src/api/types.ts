@@ -1,3 +1,5 @@
+// Copyright (c) 2026 Dhruvin Dave
+// SPDX-License-Identifier: AGPL-3.0-only
 // Shapes returned by the backend (see backend/src/twin/schemas.py and the route modules).
 // Only fields the dashboard uses are typed; everything comes from the live API.
 

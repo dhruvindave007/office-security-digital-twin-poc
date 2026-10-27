@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 import math

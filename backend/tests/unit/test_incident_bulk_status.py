@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """Operator status changes: bulk endpoint, and every change is pushed to open dashboards."""
 from fastapi.testclient import TestClient
 

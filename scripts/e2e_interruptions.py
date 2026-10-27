@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """Interruption test for the dashboard: camera streams cut and restored, then the backend restarted.
 
 Starts its own RTSP replay (scripts/replay_as_rtsp.py) and backend (live_rtsp.yaml) on --port, opens the

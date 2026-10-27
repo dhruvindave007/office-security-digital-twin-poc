@@ -14,6 +14,7 @@
   <img alt="node" src="https://img.shields.io/badge/node-20%2B-339933?style=flat-square">
   <img alt="face recognition" src="https://img.shields.io/badge/face_recognition-none-6e7681?style=flat-square">
   <img alt="status" src="https://img.shields.io/badge/status-pilot--ready_POC-d29922?style=flat-square">
+  <img alt="license" src="https://img.shields.io/badge/license-AGPL--3.0-blue?style=flat-square">
 </p>
 
 ---
@@ -183,5 +184,16 @@ data/       Demo building, rules, badge doors, scenarios; data/sites/<site>/ for
 scripts/    setup.py, start.py, demo.py (6-camera demo), RTSP replay, end-to-end checks
 docs/       Manuals, measurements, evaluations, architecture
 ```
+
+## Licence and copyright
+
+Copyright © 2026 **Dhruvin Dave** ([@dhruvindave007](https://github.com/dhruvindave007)). All rights reserved except as granted below.
+
+Office Vision Twin is licensed under the **[GNU Affero General Public License v3.0](LICENSE)**. You may use, study and modify it.
+If you distribute it, or let users interact with a modified version over a network, you must publish your complete source code
+under the same licence and keep the [NOTICE](NOTICE) and every file's copyright line.
+
+**Commercial licence.** To build Office Vision Twin into a proprietary product or service without the AGPL's source-sharing
+obligations, contact the author for a commercial licence.
 
 <sub>Built with FastAPI, React, Ultralytics YOLO, OpenVINO and Amazon Bedrock. WiseNET dataset: Marroquin et al., CC BY-NC-SA 4.0.</sub>

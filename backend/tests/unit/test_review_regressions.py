@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """Regression tests for the independent adversarial review of the M3/M3b code (2026-10-13).
 
 Each test reproduces a bug that existed and passed the previous suite; the number refers to the

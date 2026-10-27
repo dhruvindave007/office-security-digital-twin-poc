@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """Per-thread persistent SQLite connections (performance fix): no deadlock, cross-thread visibility, clean close."""
 import os, tempfile, threading
 

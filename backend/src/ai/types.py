@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional

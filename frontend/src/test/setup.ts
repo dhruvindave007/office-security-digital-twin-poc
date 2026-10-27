@@ -1,3 +1,5 @@
+// Copyright (c) 2026 Dhruvin Dave
+// SPDX-License-Identifier: AGPL-3.0-only
 // Test-only doubles: a controllable EventSource (the backend's push channel) and a routed fetch.
 import { afterEach, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';

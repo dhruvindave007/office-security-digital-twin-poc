@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """Render what the tracker sees: annotated CCTV video plus smooth (blurred) heatmaps.
 
 Outputs (in data/clips/out/<clip>/):

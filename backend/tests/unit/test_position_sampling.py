@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """Position sampling: fewer stored PERSON_DETECTED rows, transitions always stored, cited samples never lost."""
 import json
 

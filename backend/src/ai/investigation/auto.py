@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """Automatic AI investigation of serious incidents, off the live path.
 
 The rule engine notifies us of new incidents (inside the twin lock, so we only enqueue). A single

@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """Vision command-line tools. Run from backend/:  python -m src.vision.cli <command> ...
 
 Commands (each prints ONE JSON document on stdout; library logs go to stderr):

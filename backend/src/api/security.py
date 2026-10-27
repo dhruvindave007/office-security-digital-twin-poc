@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """Access control and HTTP hardening for the whole API.
 
 One middleware guards every route, so a new router cannot be left open by forgetting a dependency:

@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """Soak test: run the real server in live mode for N minutes and record stability every minute.
 
 Measures: server memory (RSS), per-camera processed fps, end-to-end latency, skipped slots,

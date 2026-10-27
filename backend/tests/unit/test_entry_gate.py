@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """Entry gate (live-valid door-entry decisions) and late-decided tailgating."""
 from src.live.entry_gate import EntryGate
 from src.rules.correlation import CorrelationEngine

@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """Badge -> track identity attribution: a person admitted by a valid badge is not 'unauthorized'."""
 from src.rules.policy import RestrictedZonePolicy
 from tests.unit.test_correlation import _create_event, test_setup  # noqa: F401  (pytest fixture)

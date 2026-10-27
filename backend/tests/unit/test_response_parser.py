@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 from src.ai.response_parser import parse_converse_response
 from src.ai.types import TokenUsage
 

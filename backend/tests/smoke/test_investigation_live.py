@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """Live M5 smoke test: real Bedrock investigation of a simulated tailgating incident (~$0.002).
 
 Skips when no AWS credentials resolve (run scripts/aws_sso_login.py to sign in).

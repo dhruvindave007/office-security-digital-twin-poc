@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """SSE push channel against a real server (TestClient buffers whole responses, so it cannot test
 an endless stream): state snapshots arrive on a timer; incidents arrive as the rules raise them."""
 import json

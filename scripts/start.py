@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """Start Office Vision Twin (after `python scripts/setup.py`). Windows, macOS, Linux.
 
     python scripts/start.py                  # uses backend/.env (HOST/PORT/OVT_API_TOKEN ...)

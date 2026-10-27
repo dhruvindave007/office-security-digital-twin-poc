@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """Canonical UTC timestamps for the event ledger.
 
 Every timestamp written to the twin uses ONE fixed-width format: YYYY-MM-DDTHH:MM:SS.ffffffZ.

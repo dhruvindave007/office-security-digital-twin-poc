@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """AI incident investigation endpoints (Amazon Bedrock, on demand, never in the vision path)."""
 from typing import Any, Dict, List
 

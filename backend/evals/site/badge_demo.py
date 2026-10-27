@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """Badge rules on REAL movement: WiseNET footage + SIMULATED badge swipes at the vision-lab door (d4).
 
 The people, their timing and the camera sightings are real; only the badge events are simulated,

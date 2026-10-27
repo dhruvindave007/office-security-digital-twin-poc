@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Dhruvin Dave
+# SPDX-License-Identifier: AGPL-3.0-only
 """Decides whether a camera track entering a badge-controlled room is a REAL door entry.
 
 Problem it solves (measured on WiseNET): a tracker that loses someone inside the room and finds them

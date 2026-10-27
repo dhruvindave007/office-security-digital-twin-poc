@@ -1,3 +1,5 @@
+// Copyright (c) 2026 Dhruvin Dave
+// SPDX-License-Identifier: AGPL-3.0-only
 import { useCallback, useEffect, useState } from 'react';
 import { ApiError, api } from '../api/client';
 import type { ClaimCheck, Incident, Investigation, InvestigationList } from '../api/types';
